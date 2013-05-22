@@ -33,7 +33,7 @@ class AnsibleShell(cmd.Cmd):
         self.prompt += '> '
 
     def default(self, arg):
-        results = self.ansible.runner.Runner(
+        results = ansible.runner.Runner(
             pattern=self.cwd, forks=1,
             module_name='shell', module_args=arg,
         ).run()
