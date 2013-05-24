@@ -23,7 +23,7 @@ class AnsibleShell(cmd.Cmd):
     def cmdloop(self):
         try:
             cmd.Cmd.cmdloop(self)
-        except KeyboardInterrupt as e:
+        except KeyboardInterrupt:
             self.intro = " "
             self.cmdloop()
 
