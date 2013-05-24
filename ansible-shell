@@ -42,9 +42,9 @@ class AnsibleShell(cmd.Cmd):
         self.prompt += '> '
 
     def default(self, arg):
-        if self.pwd == '':
+        if self.cwd == '':
             print "No host found"
-            return -1
+            return False
 
         results = ansible.runner.Runner(
             pattern=self.cwd, forks=self.forks,
@@ -53,7 +53,7 @@ class AnsibleShell(cmd.Cmd):
 
         if results is None:
             print "No hosts found"
-            return -1
+            return False
 
         print "UP ***********"
         for (hostname, result) in results['contacted'].items():
