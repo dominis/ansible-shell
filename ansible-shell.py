@@ -3,6 +3,7 @@
 
 import cmd
 import ansible.runner
+import sys
 
 
 class AnsibleShell(cmd.Cmd):
@@ -17,6 +18,17 @@ class AnsibleShell(cmd.Cmd):
         cmd.Cmd.__init__(self)
         self.intro = 'Welcome to the ansible-shell.\nType help or ? to list commands.\n'
         self.set_prompt()
+
+    def cmdloop(self):
+        try:
+            cmd.Cmd.cmdloop(self)
+        except KeyboardInterrupt as e:
+            self.intro = " "
+            self.cmdloop()
+
+    def do_EOF(self, args):
+        sys.stdout.write('\n')
+        return -1
 
     def do_exit(self, args):
         """Exits from the console"""
