@@ -11,6 +11,7 @@ class AnsibleShell(cmd.Cmd):
     ansible = ansible.runner.Runner()
     groups = ansible.inventory.groups_list().keys()
     hosts = ansible.inventory.groups_list()['all']
+    forks = 100
 
     cwd = ''
 
@@ -46,7 +47,7 @@ class AnsibleShell(cmd.Cmd):
 
     def default(self, arg):
         results = ansible.runner.Runner(
-            pattern=self.cwd, forks=1,
+            pattern=self.cwd, forks=self.forks,
             module_name='shell', module_args=arg,
         ).run()
 
