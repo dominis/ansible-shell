@@ -37,13 +37,12 @@ class AnsibleShell(cmd.Cmd):
         return -1
 
     def set_prompt(self):
-        self.prompt = 'ansible# /' + stringc(self.cwd, 'purple')
+        self.prompt = '[ansible:' + stringc('/' + self.cwd, 'purple')
         if self.cwd in self.groups:
-            self.prompt += ' ' + \
-                '(' + \
+            self.prompt += ' (' + \
                 stringc(str(len(self.ansible.inventory.groups_list()[self.cwd])), 'green') + \
                 ')'
-        self.prompt += '> '
+        self.prompt += ']$ '
 
     def default(self, arg):
         if self.cwd == '':
