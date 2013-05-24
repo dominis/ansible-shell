@@ -4,6 +4,7 @@
 import cmd
 import ansible.runner
 import sys
+from ansible.color import stringc
 
 
 class AnsibleShell(cmd.Cmd):
@@ -36,9 +37,12 @@ class AnsibleShell(cmd.Cmd):
         return -1
 
     def set_prompt(self):
-        self.prompt = 'ansible# /' + self.cwd
+        self.prompt = 'ansible# /' + stringc(self.cwd, 'purple')
         if self.cwd in self.groups:
-            self.prompt += ' (' + str(len(self.ansible.inventory.groups_list()[self.cwd])) + ')'
+            self.prompt += ' ' + \
+                '(' + \
+                stringc(str(len(self.ansible.inventory.groups_list()[self.cwd])), 'green') + \
+                ')'
         self.prompt += '> '
 
     def default(self, arg):
