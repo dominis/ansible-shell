@@ -52,7 +52,7 @@ class AnsibleShell(cmd.Cmd):
 
         if results is None:
             print "No hosts found"
-            sys.exit(1)
+            return -1
 
         print "UP ***********"
         for (hostname, result) in results['contacted'].items():
