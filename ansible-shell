@@ -35,10 +35,6 @@ class AnsibleShell(cmd.Cmd):
         """Exits from the console"""
         return -1
 
-    def do_hist(self, args):
-        """Print a list of commands that have been entered"""
-        print self._hist
-
     def set_prompt(self):
         self.prompt = 'ansible# /' + self.cwd
         if self.cwd in self.groups:
@@ -46,6 +42,10 @@ class AnsibleShell(cmd.Cmd):
         self.prompt += '> '
 
     def default(self, arg):
+        if self.pwd == '':
+            print "No host found"
+            return -1
+
         results = ansible.runner.Runner(
             pattern=self.cwd, forks=self.forks,
             module_name='shell', module_args=arg,
