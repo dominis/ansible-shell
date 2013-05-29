@@ -7,6 +7,7 @@ from ansible.color import stringc
 import sys
 import os
 
+
 class AnsibleShell(cmd.Cmd):
 
     ansible = ansible.runner.Runner()
@@ -37,7 +38,7 @@ class AnsibleShell(cmd.Cmd):
         return -1
 
     def set_prompt(self):
-        self.prompt = stringc(os.getlogin() + '@~'  + self.cwd, 'green')
+        self.prompt = stringc(os.getlogin() + '@~' + self.cwd, 'green')
         if self.cwd in self.groups:
             self.prompt += stringc(' (' + str(len(self.ansible.inventory.groups_list()[self.cwd])) + ')', 'red')
         self.prompt += '$ '
