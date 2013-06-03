@@ -1,7 +1,7 @@
 # ansible-shell
 
 
-Interactive ansible shell
+Interactive shell for ansible built-in tab completion for all the modules.
 
 ## Availabe commands:
 
@@ -45,5 +45,21 @@ app03.bfc.kinja.com >>> Fri May 24 12:01:19 EDT 2013
 app02.bfc.kinja.com >>> Fri May 24 12:01:19 EDT 2013
 FAILED *******
 DOWN *********
-ansible# /app-pool (12)>
+ansible# /app-pool (12)> <TAB>
+Display all 100 possibilities? (y or n)
+EOF                  cd                   exit                 group_by             macports             openbsd_pkg          rabbitmq_parameter   service              virt
+add_host             cloudformation       facter               help                 mail                 opkg                 rabbitmq_plugin      set_fact             wait_for
+apt                  command              fail                 hg                   mongodb_user         osx_say              rabbitmq_user        setup                yum
+apt_key              copy                 fetch                hipchat              mount                pacman               rabbitmq_vhost       shell                zfs
+apt_repository       cron                 file                 homebrew             mqtt                 pause                raw                  slurp
+assemble             debug                filesystem           ini_file             mysql_db             ping                 rax                  subversion
+async_status         django_manage        fireball             irc                  mysql_user           pip                  rhn_channel          supervisorctl
+async_wrapper        easy_install         flowdock             jabber               nagios               pkgin                riak                 svr4pkg
+authorized_key       ec2                  gem                  lineinfile           netscaler            pkgng                s3                   sysctl
+bigip_pool           ec2_elb              get_url              list                 newrelic_deployment  postgresql_db        script               template
+bzr                  ec2_facts            git                  lvg                  npm                  postgresql_privs     seboolean            uri
+campfire             ec2_vol              group                lvol                 ohai                 postgresql_user      selinux              user
+ansible# /app-pool (12)> netscaler <TAB>
+action        name          nsc_host      nsc_protocol  password      type          user
+ansible# /app-pool (12)> netscaler nsc_
 ```
