@@ -4,7 +4,12 @@
 import cmd
 import ansible.runner
 from ansible.color import stringc
+from ansible.constants import DIST_MODULE_PATH
+from ansible import utils
+import ansible.utils.module_docs as module_docs
 import sys
+import os
+import fnmatch
 import os
 
 
@@ -13,14 +18,21 @@ class AnsibleShell(cmd.Cmd):
     ansible = ansible.runner.Runner()
     groups = ansible.inventory.groups_list().keys()
     hosts = ansible.inventory.groups_list()['all']
+    modules = []
     forks = 100
 
     cwd = ''
 
     def __init__(self):
-        cmd.Cmd.__init__(self)
         self.intro = 'Welcome to the ansible-shell.\nType help or ? to list commands.\n'
         self.set_prompt()
+        self.modules = self.list_modules()
+        for module in self.modules:
+            setattr(self, 'do_' + module, lambda arg, module=module: self.default(module + ' ' + arg))
+        cmd.Cmd.__init__(self)
+
+    def get_names(self):
+        return dir(self)
 
     def cmdloop(self):
         try:
@@ -29,50 +41,56 @@ class AnsibleShell(cmd.Cmd):
             self.intro = " "
             self.cmdloop()
 
-    def do_EOF(self, args):
-        sys.stdout.write('\n')
-        return -1
-
-    def do_exit(self, args):
-        """Exits from the console"""
-        return -1
-
     def set_prompt(self):
-        self.prompt = stringc(os.getlogin() + '@~' + self.cwd, 'green')
+        self.prompt = stringc(os.getlogin() + '@/' + self.cwd, 'green')
         if self.cwd in self.groups:
             self.prompt += stringc(' (' + str(len(self.ansible.inventory.groups_list()[self.cwd])) + ')', 'red')
         self.prompt += '$ '
 
+    def list_modules(self):
+        modules = []
+        for root, dirs, files in os.walk(DIST_MODULE_PATH + '/library/'):
+            for basename in files:
+                modules.append(basename)
+
+        return modules
+
     def default(self, arg):
-        if self.cwd == '':
+        if not self.cwd:
             print "No host found"
             return False
 
-        results = ansible.runner.Runner(
-            pattern=self.cwd, forks=self.forks,
-            module_name='shell', module_args=arg,
-        ).run()
+        if arg.split()[0] in self.modules:
+            module = arg.split()[0]
+            module_args = arg.split()[-1]
+        else:
+            module = 'shell'
+            module_args = arg
+
+        try:
+            results = ansible.runner.Runner(
+                pattern=self.cwd, forks=self.forks,
+                module_name=module, module_args=module_args,
+            ).run()
+        except:
+            return
 
         if results is None:
             print "No hosts found"
             return False
 
-        print "UP ***********"
         for (hostname, result) in results['contacted'].items():
-            if not 'failed' in result:
+            if stderr is not False:
                 print "%s >>> %s" % (hostname, result['stdout'])
 
-        print "FAILED *******"
         for (hostname, result) in results['contacted'].items():
-            if 'failed' in result:
-                print "%s >>> %s" % (hostname, result['msg'])
-
-        print "DOWN *********"
-        for (hostname, result) in results['dark'].items():
-            print "%s >>> %s" % (hostname, result)
+            if result.stderr is True:
+                print "%s >>> %s" % (hostname, result['stderr'])
 
     def do_cd(self, arg):
-        if arg == '..':
+        if not arg:
+            self.cwd = ''
+        elif arg == '..':
             try:
                 self.cwd = self.ansible.inventory.groups_for_host(self.cwd)[1].name
             except Exception:
@@ -94,6 +112,14 @@ class AnsibleShell(cmd.Cmd):
         for item in items:
             print item
 
+    def do_EOF(self, args):
+        sys.stdout.write('\n')
+        return -1
+
+    def do_exit(self, args):
+        """Exits from the console"""
+        return -1
+
     def complete_cd(self, text, line, begidx, endidx):
         mline = line.partition(' ')[2]
         offs = len(mline) - len(text)
@@ -104,6 +130,20 @@ class AnsibleShell(cmd.Cmd):
             completions = self.ansible.inventory.list_hosts(self.cwd)
 
         return [s[offs:] for s in completions if s.startswith(mline)]
+
+    def completedefault(self, text, line, begidx, endidx):
+        if line.split()[0] in self.modules:
+            mline = line.split(' ')[-1]
+            offs = len(mline) - len(text)
+
+            completions = self.module_args(line.split()[0])
+
+            return [s[offs:] for s in completions if s.startswith(mline)]
+
+    def module_args(self, module_name):
+        in_path = utils.plugins.module_finder.find_plugin(module_name)
+        oc, a = ansible.utils.module_docs.get_docstring(in_path)
+        return oc['options'].keys()
 
 
 if __name__ == '__main__':
