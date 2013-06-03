@@ -9,8 +9,6 @@ from ansible import utils
 import ansible.utils.module_docs as module_docs
 import sys
 import os
-import fnmatch
-import os
 
 
 class AnsibleShell(cmd.Cmd):
@@ -80,7 +78,7 @@ class AnsibleShell(cmd.Cmd):
             return False
 
         for (hostname, result) in results['contacted'].items():
-            if stderr is not False:
+            if result.stderr is not False:
                 print "%s >>> %s" % (hostname, result['stdout'])
 
         for (hostname, result) in results['contacted'].items():
@@ -135,10 +133,9 @@ class AnsibleShell(cmd.Cmd):
         if line.split()[0] in self.modules:
             mline = line.split(' ')[-1]
             offs = len(mline) - len(text)
-
             completions = self.module_args(line.split()[0])
 
-            return [s[offs:] for s in completions if s.startswith(mline)]
+            return [s[offs:] + '=' for s in completions if s.startswith(mline)]
 
     def module_args(self, module_name):
         in_path = utils.plugins.module_finder.find_plugin(module_name)
