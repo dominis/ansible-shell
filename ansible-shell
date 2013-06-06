@@ -17,7 +17,7 @@ class AnsibleShell(cmd.Cmd):
     groups = ansible.inventory.groups_list().keys()
     hosts = ansible.inventory.groups_list()['all']
     modules = []
-    forks = 100
+    serial = 2
 
     cwd = ''
 
@@ -44,6 +44,7 @@ class AnsibleShell(cmd.Cmd):
         self.prompt = stringc(os.getlogin() + '@/' + self.cwd, 'green')
         if self.cwd in self.groups:
             self.prompt += stringc(' (' + str(len(self.ansible.inventory.groups_list()[self.cwd])) + ')', 'red')
+        self.prompt += '[s:' + stringc(str(self.serial), 'green') + ']'
         self.prompt += '$ '
 
     def list_modules(self):
@@ -85,6 +86,10 @@ class AnsibleShell(cmd.Cmd):
         for (hostname, result) in results['contacted'].items():
             if result.stderr is True:
                 print "%s >>> %s" % (hostname, result['stderr'])
+
+    def do_serial(self, arg):
+        self.serial = arg
+        self.set_prompt()
 
     def do_cd(self, arg):
         if not arg:
