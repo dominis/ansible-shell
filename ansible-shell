@@ -133,7 +133,6 @@ class AnsibleShell(cmd.Cmd):
             for opt in oc['options'].keys():
                 print '  ' + stringc(opt, 'white') + ' ' + oc['options'][opt]['description'][0]
 
-
     def complete_cd(self, text, line, begidx, endidx):
         mline = line.partition(' ')[2]
         offs = len(mline) - len(text)
