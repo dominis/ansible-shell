@@ -49,7 +49,7 @@ class AnsibleShell(cmd.Cmd):
 
     def list_modules(self):
         modules = []
-        for root, dirs, files in os.walk(DIST_MODULE_PATH + '/library/'):
+        for root, dirs, files in os.walk(DIST_MODULE_PATH):
             for basename in files:
                 modules.append(basename)
 
