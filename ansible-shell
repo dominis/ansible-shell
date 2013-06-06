@@ -27,6 +27,7 @@ class AnsibleShell(cmd.Cmd):
         self.modules = self.list_modules()
         for module in self.modules:
             setattr(self, 'do_' + module, lambda arg, module=module: self.default(module + ' ' + arg))
+            setattr(self, 'help_' + module, lambda module=module: self.helpdefault(module))
         cmd.Cmd.__init__(self)
 
     def get_names(self):
@@ -117,6 +118,16 @@ class AnsibleShell(cmd.Cmd):
     def do_exit(self, args):
         """Exits from the console"""
         return -1
+
+    def helpdefault(self, module_name):
+        if module_name in self.modules:
+            in_path = utils.plugins.module_finder.find_plugin(module_name)
+            oc, a = ansible.utils.module_docs.get_docstring(in_path)
+            print stringc(oc['short_description'], 'bright gray')
+            print 'Paremeters:'
+            for opt in oc['options'].keys():
+                print '  ' + stringc(opt, 'white') + ' ' + oc['options'][opt]['description'][0]
+
 
     def complete_cd(self, text, line, begidx, endidx):
         mline = line.partition(' ')[2]
