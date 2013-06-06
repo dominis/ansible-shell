@@ -69,7 +69,7 @@ class AnsibleShell(cmd.Cmd):
 
         try:
             results = ansible.runner.Runner(
-                pattern=self.cwd, forks=self.forks,
+                pattern=self.cwd, forks=self.serial,
                 module_name=module, module_args=module_args,
             ).run()
         except:
