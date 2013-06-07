@@ -80,12 +80,13 @@ class AnsibleShell(cmd.Cmd):
             return False
 
         for (hostname, result) in results['contacted'].items():
-            if result['stderr'] is not False:
-                print "%s >>> %s" % (hostname, result['stdout'])
-
-        for (hostname, result) in results['contacted'].items():
-            if result['stderr'] is True:
-                print "%s >>> %s" % (hostname, result['stderr'])
+            if 'stderr' in result.keys():
+                if result['stderr'] is not False:
+                    print "%s >>> %s" % (hostname, result['stdout'])
+                if result['stderr'] is True:
+                    print "%s >>> %s" % (hostname, result['stderr'])
+            else:
+                print "%s >>> %s" % (hostname, result['msg'])
 
     def emptyline(self):
         return
