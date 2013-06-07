@@ -87,6 +87,9 @@ class AnsibleShell(cmd.Cmd):
             if result['stderr'] is True:
                 print "%s >>> %s" % (hostname, result['stderr'])
 
+    def emptyline(self):
+        return
+
     def do_serial(self, arg):
         """Set the number of forks"""
         self.serial = arg
