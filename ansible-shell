@@ -62,7 +62,7 @@ class AnsibleShell(cmd.Cmd):
 
         if arg.split()[0] in self.modules:
             module = arg.split()[0]
-            module_args = arg.split()[-1]
+            module_args = ' '.join(arg.split()[1:])
         else:
             module = 'shell'
             module_args = arg
@@ -90,10 +90,10 @@ class AnsibleShell(cmd.Cmd):
                 else:
                     print "%s >>> %s" % (stringc(hostname, 'red'), result['stderr'])
             else:
-                if not result['failed']:
-                    print "%s\n%s" % (stringc(hostname, 'bright gray'), result['msg'])
+                if 'failed' not in result.keys():
+                    print "%s\n%s" % (stringc(hostname, 'bright gray'), result)
                 else:
-                    print "%s >>> %s" % (stringc(hostname, 'red'), result['msg'])
+                    print "%s >>> %s" % (stringc(hostname, 'red'), result)
 
 
     def emptyline(self):
