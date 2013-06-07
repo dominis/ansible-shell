@@ -8,6 +8,7 @@ Interactive shell for ansible built-in tab completion for all the modules.
 ```
 cd
 list
+serial
 ```
 ## Usage:
 ```

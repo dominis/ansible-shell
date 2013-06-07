@@ -88,10 +88,12 @@ class AnsibleShell(cmd.Cmd):
                 print "%s >>> %s" % (hostname, result['stderr'])
 
     def do_serial(self, arg):
+        """Set the number of forks"""
         self.serial = arg
         self.set_prompt()
 
     def do_cd(self, arg):
+        """Change active host/group"""
         if not arg:
             self.cwd = ''
         elif arg == '..':
@@ -109,6 +111,7 @@ class AnsibleShell(cmd.Cmd):
         self.set_prompt()
 
     def do_list(self, arg):
+        """List the hosts in the current group"""
         if arg == 'groups':
             items = self.ansible.inventory.list_groups()
         else:
