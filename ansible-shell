@@ -55,7 +55,7 @@ class AnsibleShell(cmd.Cmd):
 
         return modules
 
-    def default(self, arg):
+    def default(self, arg, forceshell=False):
         if not self.cwd:
             print "No host found"
             return False
@@ -64,6 +64,10 @@ class AnsibleShell(cmd.Cmd):
             module = arg.split()[0]
             module_args = arg.split()[-1]
         else:
+            module = 'shell'
+            module_args = arg
+
+        if forceshell is True:
             module = 'shell'
             module_args = arg
 
@@ -94,6 +98,9 @@ class AnsibleShell(cmd.Cmd):
 
     def emptyline(self):
         return
+
+    def do_shell(self, arg):
+        self.default(arg, True)
 
     def do_serial(self, arg):
         """Set the number of forks"""
