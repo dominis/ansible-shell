@@ -87,9 +87,9 @@ class AnsibleShell(cmd.Cmd):
                     print "%s >>> %s" % (stringc(hostname, 'red'), result['stderr'])
             else:
                 if not result['failed']:
-                    print "%s >>> %s" % (stringc(hostname, 'bright gray'), result['msg'])
+                    print "%s\n%s" % (stringc(hostname, 'bright gray'), result['msg'])
                 else:
-                    print "%s\n%s" % (stringc(hostname, 'red'), result['msg'])
+                    print "%s >>> %s" % (stringc(hostname, 'red'), result['msg'])
 
 
     def emptyline(self):
