@@ -9,6 +9,7 @@ from ansible import utils
 import ansible.utils.module_docs as module_docs
 import sys
 import os
+import pwd
 
 
 class AnsibleShell(cmd.Cmd):
@@ -41,7 +42,7 @@ class AnsibleShell(cmd.Cmd):
             self.cmdloop()
 
     def set_prompt(self):
-        self.prompt = stringc(os.getlogin() + '@/' + self.cwd, 'green')
+        self.prompt = stringc(pwd.getpwuid(os.getuid())[0] + '@/' + self.cwd, 'green')
         if self.cwd in self.groups:
             self.prompt += stringc(' (' + str(len(self.ansible.inventory.groups_list()[self.cwd])) + ')', 'red')
         self.prompt += '[s:' + stringc(str(self.serial), 'green') + ']'
