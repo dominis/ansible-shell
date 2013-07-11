@@ -178,4 +178,12 @@ class AnsibleShell(cmd.Cmd):
 
 
 if __name__ == '__main__':
+    # This hack is to work around readline issues on a mac:
+    #  http://stackoverflow.com/a/7116997/541202
+    import readline
+    import rlcompleter
+    if 'libedit' in readline.__doc__:
+        readline.parse_and_bind("bind ^I rl_complete")
+    else:
+        readline.parse_and_bind("tab: complete")
     AnsibleShell().cmdloop()
