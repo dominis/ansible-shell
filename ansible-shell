@@ -96,7 +96,6 @@ class AnsibleShell(cmd.Cmd):
                 else:
                     print "%s >>> %s" % (stringc(hostname, 'red'), result)
 
-
     def emptyline(self):
         return
 
