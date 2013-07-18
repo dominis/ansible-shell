@@ -4,7 +4,7 @@
 import cmd
 import ansible.runner
 from ansible.color import stringc
-from ansible.constants import DIST_MODULE_PATH
+from ansible.constants import DEFAULT_MODULE_PATH
 from ansible import utils
 import ansible.utils.module_docs as module_docs
 import sys
@@ -49,9 +49,8 @@ class AnsibleShell(cmd.Cmd):
         self.prompt += '$ '
 
     def list_modules(self):
-        module_path = os.environ.get("ANSIBLE_LIBRARY", DIST_MODULE_PATH)
         modules = []
-        for root, dirs, files in os.walk(module_path):
+        for root, dirs, files in os.walk(DEFAULT_MODULE_PATH):
             for basename in files:
                 modules.append(basename)
 
