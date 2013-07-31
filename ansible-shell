@@ -155,6 +155,27 @@ class AnsibleShell(cmd.Cmd):
         for item in items:
             print item
 
+    def do_sudo(self, arg):
+        """Toggle whether plays run with sudo"""
+        self.options.sudo = not self.options.sudo
+        print "sudo changed to %s" % self.options.sudo
+
+    def do_remote_user(self, arg):
+        """Given a username, set the remote user plays are run by"""
+        if arg:
+            self.options.remote_user = arg
+            self.set_prompt()
+        else:
+            print "Please specify a remote user, e.g. `remote_user root`"
+
+    def do_sudo_user(self, arg):
+        """Given a username, set the user that plays are run by when using sudo"""
+        if arg:
+            self.options.sudo_user = arg
+        else:
+            print "Please specify a sudo user, e.g. `sudo_user jenkins`"
+            print "Current sudo user is %s" % self.options.sudo_user
+
     def do_EOF(self, args):
         sys.stdout.write('\n')
         return -1
