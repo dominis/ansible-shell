@@ -149,7 +149,7 @@ class AnsibleShell(cmd.Cmd):
             in_path = utils.plugins.module_finder.find_plugin(module_name)
             oc, a = ansible.utils.module_docs.get_docstring(in_path)
             print stringc(oc['short_description'], 'bright gray')
-            print 'Paremeters:'
+            print 'Parameters:'
             for opt in oc['options'].keys():
                 print '  ' + stringc(opt, 'white') + ' ' + oc['options'][opt]['description'][0]
 
