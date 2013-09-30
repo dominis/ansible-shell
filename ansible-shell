@@ -1,10 +1,10 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import cmd
 import ansible.runner
+import ansible.constants as C
 from ansible.color import stringc
-from ansible.constants import DEFAULT_MODULE_PATH
 from ansible import utils
 import ansible.utils.module_docs as module_docs
 import sys
@@ -13,6 +13,7 @@ import pwd
 import readline
 import rlcompleter
 import atexit
+from optparse import OptionParser
 
 class AnsibleShell(cmd.Cmd):
 
@@ -24,7 +25,9 @@ class AnsibleShell(cmd.Cmd):
 
     cwd = ''
 
-    def __init__(self):
+    def __init__(self, options, args):
+        self.options = options
+        self.args = args
         self.intro = 'Welcome to the ansible-shell.\nType help or ? to list commands.\n'
         self.set_prompt()
         self.modules = self.list_modules()
@@ -32,6 +35,19 @@ class AnsibleShell(cmd.Cmd):
             setattr(self, 'do_' + module, lambda arg, module=module: self.default(module + ' ' + arg))
             setattr(self, 'help_' + module, lambda module=module: self.helpdefault(module))
         cmd.Cmd.__init__(self)
+
+    @staticmethod
+    def parse_opts():
+        parser = OptionParser()
+        parser.add_option("-s", "--sudo", default=False, action="store_true",
+                          dest='sudo', help="run operations with sudo (nopasswd)")
+        parser.add_option('-U', '--sudo-user', dest='sudo_user',
+                          help='desired sudo user (default=root)', default="root")
+        parser.add_option('-u', '--user', default=C.DEFAULT_REMOTE_USER,
+                          dest='remote_user',
+                          help='connect as this user (default=%s)' % C.DEFAULT_REMOTE_USER)
+
+        return parser.parse_args()
 
     def get_names(self):
         return dir(self)
@@ -44,7 +60,7 @@ class AnsibleShell(cmd.Cmd):
             self.cmdloop()
 
     def set_prompt(self):
-        self.prompt = stringc(pwd.getpwuid(os.getuid())[0] + '@/' + self.cwd, 'green')
+        self.prompt = stringc(self.options.remote_user + '@/' + self.cwd, 'green')
         if self.cwd in self.groups:
             self.prompt += stringc(' (' + str(len(self.ansible.inventory.groups_list()[self.cwd])) + ')', 'red')
         self.prompt += '[s:' + stringc(str(self.serial), 'green') + ']'
@@ -52,7 +68,7 @@ class AnsibleShell(cmd.Cmd):
 
     def list_modules(self):
         modules = []
-        for root, dirs, files in os.walk(DEFAULT_MODULE_PATH):
+        for root, dirs, files in os.walk(C.DEFAULT_MODULE_PATH):
             for basename in files:
                 modules.append(basename)
 
@@ -75,9 +91,12 @@ class AnsibleShell(cmd.Cmd):
             module_args = arg
 
         try:
+            opts = self.options
             results = ansible.runner.Runner(
                 pattern=self.cwd, forks=self.serial,
                 module_name=module, module_args=module_args,
+                remote_user=opts.remote_user,
+                sudo=opts.sudo, sudo_user=opts.sudo_user
             ).run()
         except:
             return
@@ -135,6 +154,27 @@ class AnsibleShell(cmd.Cmd):
             items = self.ansible.inventory.list_hosts('all' if self.cwd == '' else self.cwd)
         for item in items:
             print item
+
+    def do_sudo(self, arg):
+        """Toggle whether plays run with sudo"""
+        self.options.sudo = not self.options.sudo
+        print "sudo changed to %s" % self.options.sudo
+
+    def do_remote_user(self, arg):
+        """Given a username, set the remote user plays are run by"""
+        if arg:
+            self.options.remote_user = arg
+            self.set_prompt()
+        else:
+            print "Please specify a remote user, e.g. `remote_user root`"
+
+    def do_sudo_user(self, arg):
+        """Given a username, set the user that plays are run by when using sudo"""
+        if arg:
+            self.options.sudo_user = arg
+        else:
+            print "Please specify a sudo user, e.g. `sudo_user jenkins`"
+            print "Current sudo user is %s" % self.options.sudo_user
 
     def do_EOF(self, args):
         sys.stdout.write('\n')
@@ -195,4 +235,6 @@ if __name__ == '__main__':
         pass
     atexit.register(readline.write_history_file, histfile)
 
-    AnsibleShell().cmdloop()
+    (options, args) = AnsibleShell.parse_opts()
+    AnsibleShell(options, args).cmdloop()
+
