@@ -3,17 +3,32 @@
 
 import cmd
 import ansible.runner
+from ansible.color import stringc, codeCodes
 import ansible.constants as C
-from ansible.color import stringc
 from ansible import utils
 import ansible.utils.module_docs as module_docs
 import sys
 import os
+import pprint
 import pwd
 import readline
 import rlcompleter
 import atexit
 from optparse import OptionParser
+
+
+class colorizer(object):
+    def __init__(self, color):
+        self.color = color
+
+    def __enter__(self):
+        sys.stdout.write("\033[")
+        sys.stdout.write(codeCodes[self.color])
+        sys.stdout.write("m")
+
+    def __exit__(self, *args):
+        sys.stdout.write("\033[0m")
+
 
 class AnsibleShell(cmd.Cmd):
 
@@ -113,7 +128,9 @@ class AnsibleShell(cmd.Cmd):
                     print "%s >>> %s" % (stringc(hostname, 'red'), result['stderr'])
             else:
                 if 'failed' not in result.keys():
-                    print "%s\n%s" % (stringc(hostname, 'bright gray'), result)
+                    with colorizer('bright gray'):
+                        print hostname
+                        pprint.pprint(result)
                 else:
                     print "%s >>> %s" % (stringc(hostname, 'red'), result)
 
