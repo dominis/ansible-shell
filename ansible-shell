@@ -134,6 +134,9 @@ class AnsibleShell(cmd.Cmd):
                 else:
                     print "%s >>> %s" % (stringc(hostname, 'red'), result)
 
+        for (hostname, result) in results['dark'].items():
+            print "%s >>> %s" % (stringc(hostname, 'red'), result['msg'])
+
     def emptyline(self):
         return
 
