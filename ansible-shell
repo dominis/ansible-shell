@@ -58,6 +58,8 @@ class AnsibleShell(cmd.Cmd):
                           dest='sudo', help="run operations with sudo (nopasswd)")
         parser.add_option('-U', '--sudo-user', dest='sudo_user',
                           help='desired sudo user (default=root)', default="root")
+        parser.add_option('-t', '--timeout', dest='timeout', default=5,
+                          help='timeout (default=5)')
         parser.add_option('-u', '--user', default=C.DEFAULT_REMOTE_USER,
                           dest='remote_user',
                           help='connect as this user (default=%s)' % C.DEFAULT_REMOTE_USER)
@@ -90,6 +92,9 @@ class AnsibleShell(cmd.Cmd):
         return modules
 
     def default(self, arg, forceshell=False):
+        if arg.startswith("#"):
+            return False
+
         if not self.cwd:
             print "No host found"
             return False
@@ -111,7 +116,8 @@ class AnsibleShell(cmd.Cmd):
                 pattern=self.cwd, forks=self.serial,
                 module_name=module, module_args=module_args,
                 remote_user=opts.remote_user,
-                sudo=opts.sudo, sudo_user=opts.sudo_user
+                sudo=opts.sudo, sudo_user=opts.sudo_user,
+                timeout=int(opts.timeout)
             ).run()
         except Exception as e:
             print e.msg
