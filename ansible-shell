@@ -113,8 +113,8 @@ class AnsibleShell(cmd.Cmd):
                 remote_user=opts.remote_user,
                 sudo=opts.sudo, sudo_user=opts.sudo_user
             ).run()
-        except:
-            return
+        except Exception as e:
+            print e.msg
 
         if results is None:
             print "No hosts found"
