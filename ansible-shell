@@ -92,6 +92,9 @@ class AnsibleShell(cmd.Cmd):
         return modules
 
     def default(self, arg, forceshell=False):
+        if arg.startswith("#"):
+            return False
+
         if not self.cwd:
             print "No host found"
             return False
