@@ -165,7 +165,7 @@ class AnsibleShell(cmd.Cmd):
                 self.cwd = ''
         elif arg == '/':
             self.cwd = ''
-        elif arg in self.hosts or arg in self.groups:
+        elif self.ansible.inventory.get_hosts(arg):
             self.cwd = arg
         else:
             print "incorrect path"
