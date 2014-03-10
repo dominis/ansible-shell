@@ -7,6 +7,7 @@ from ansible.color import stringc, codeCodes
 import ansible.constants as C
 from ansible import utils
 from ansible import callbacks
+from ansible.inventory import Host
 import ansible.utils.module_docs as module_docs
 import sys
 import os
@@ -36,7 +37,7 @@ class AnsibleShell(cmd.Cmd):
     groups = ansible.inventory.groups_list().keys()
     hosts = ansible.inventory.groups_list()['all']
     modules = []
-    serial = 20
+    serial = 2
 
     cwd = ''
 
@@ -101,7 +102,8 @@ class AnsibleShell(cmd.Cmd):
         # print hosts
         callbacks.display("HOSTS:","bright blue")
         for host in self.selected:
-            callbacks.display("\t%s" % host.name,"green")
+            hostname = host.name if isinstance(host, Host) else host
+            callbacks.display("\t%s" % hostname,"green")
 
         callbacks.display("\nSUMMARY: host_num[%d] module[%s] module_args[%s] options[%s]\n" % (len(self.selected), module, module_args, self.options),"bright blue")
    
