@@ -80,8 +80,8 @@ class AnsibleShell(cmd.Cmd):
             self.cmdloop()
 
     def set_prompt(self):
-        self.selected = self.ansible.inventory.get_hosts('all' if not self.cwd else self.cwd)
-        self.prompt = stringc(self.options.remote_user + '@/' + self.cwd, 'green')
+        self.selected = self.ansible.inventory.list_hosts(self.cwd)
+        self.prompt = stringc(self.options.remote_user + '@' + self.cwd, 'green')
         self.prompt += stringc(' (' + str(len(self.selected)) + ')', 'red')
         self.prompt += '[s:' + stringc(str(self.serial), 'green') + ']'
         self.prompt += '$ '
@@ -107,7 +107,10 @@ class AnsibleShell(cmd.Cmd):
    
         answer=False
         try:
-            answer = raw_input("Do you confirm to excute?[y/N]:(default=No)")
+            print "Do you confirm to excute?[y/N]:(default=No) ",
+            # cmd module use raw_input to read user command by default, to avoid our ansewer here 'logged' into history, 
+            # use sys.stdin.readline instead of raw_input, see more at http://docs.python.org/2/library/cmd.html#cmd.Cmd.use_rawinput
+            answer = sys.stdin.readline()[:-1]
         except:
             answer = False
         return utils.boolean(answer)
@@ -199,7 +202,7 @@ class AnsibleShell(cmd.Cmd):
             except Exception:
                 self.cwd = ''
         elif arg == '/':
-            self.cwd = ''
+            self.cwd = 'all'
         elif self.ansible.inventory.get_hosts(arg):
             self.cwd = arg
         else:
@@ -212,7 +215,7 @@ class AnsibleShell(cmd.Cmd):
         if arg == 'groups':
             items = self.ansible.inventory.list_groups()
         else:
-            items = self.ansible.inventory.list_hosts('all' if self.cwd == '' else self.cwd)
+            items = self.selected
         for item in items:
             print item
 
