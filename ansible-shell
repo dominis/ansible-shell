@@ -63,7 +63,7 @@ class AnsibleShell(cmd.Cmd):
         parser.add_option('-u', '--user', default=C.DEFAULT_REMOTE_USER,
                           dest='remote_user',
                           help='connect as this user (default=%s)' % C.DEFAULT_REMOTE_USER)
-        parser.add_option('-i', '--inventory', default='./hosts',
+        parser.add_option('-i', '--inventory', default=C.DEFAULT_HOST_LIST,
                           dest='host_list',
                           help='Inventory file')
         return parser.parse_args()
