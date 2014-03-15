@@ -70,6 +70,7 @@ class AnsibleShell(cmd.Cmd):
         parser.add_option('-i', '--inventory', default=C.DEFAULT_HOST_LIST,
                           dest='host_list',
                           help='Inventory file')
+
         return parser.parse_args()
 
     def get_names(self):
@@ -158,7 +159,6 @@ class AnsibleShell(cmd.Cmd):
         except Exception as e:
             print e.msg
             return False
-
 
         for (hostname, result) in results['contacted'].items():
             print "=============== %-30s ================" % stringc(hostname, 'bright gray')
