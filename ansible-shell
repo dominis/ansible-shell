@@ -6,10 +6,11 @@ import ansible.runner
 from ansible.color import stringc, codeCodes
 import ansible.constants as C
 from ansible import utils
+from ansible import callbacks
+from ansible.inventory import Host
 import ansible.utils.module_docs as module_docs
 import sys
 import os
-import pprint
 import pwd
 import readline
 import rlcompleter
@@ -63,6 +64,9 @@ class AnsibleShell(cmd.Cmd):
         parser.add_option('-u', '--user', default=C.DEFAULT_REMOTE_USER,
                           dest='remote_user',
                           help='connect as this user (default=%s)' % C.DEFAULT_REMOTE_USER)
+        parser.add_option('-p', '--step', default=False, action="store_true",
+                          dest='step',
+                          help='one-step-at-a-time: confirm each task before running')
         parser.add_option('-i', '--inventory', default=C.DEFAULT_HOST_LIST,
                           dest='host_list',
                           help='Inventory file')
@@ -79,9 +83,9 @@ class AnsibleShell(cmd.Cmd):
             self.cmdloop()
 
     def set_prompt(self):
-        self.prompt = stringc(self.options.remote_user + '@/' + self.cwd, 'green')
-        if self.cwd in self.groups:
-            self.prompt += stringc(' (' + str(len(self.ansible.inventory.groups_list()[self.cwd])) + ')', 'red')
+        self.selected = self.ansible.inventory.list_hosts(self.cwd)
+        self.prompt = stringc(self.options.remote_user + '@' + self.cwd, 'green')
+        self.prompt += stringc(' (' + str(len(self.selected)) + ')', 'red')
         self.prompt += '[s:' + stringc(str(self.serial), 'green') + ']'
         self.prompt += '$ '
 
@@ -92,6 +96,28 @@ class AnsibleShell(cmd.Cmd):
                 modules.append(basename)
 
         return modules
+
+    def confirm(self, module, module_args):
+        if not self.options.step:
+            return True
+
+        # print hosts
+        callbacks.display("HOSTS:","bright blue")
+        for host in self.selected:
+            hostname = host.name if isinstance(host, Host) else host
+            callbacks.display("\t%s" % hostname,"green")
+
+        callbacks.display("\nSUMMARY: host_num[%d] module[%s] module_args[%s] options[%s]\n" % (len(self.selected), module, module_args, self.options),"bright blue")
+   
+        answer=False
+        try:
+            print "Do you confirm to excute?[y/N]:(default=No) ",
+            # cmd module use raw_input to read user command by default, to avoid our ansewer here 'logged' into history, 
+            # use sys.stdin.readline instead of raw_input, see more at http://docs.python.org/2/library/cmd.html#cmd.Cmd.use_rawinput
+            answer = sys.stdin.readline()[:-1]
+        except:
+            answer = False
+        return utils.boolean(answer)
 
     def default(self, arg, forceshell=False):
         if arg.startswith("#"):
@@ -112,6 +138,10 @@ class AnsibleShell(cmd.Cmd):
             module = 'shell'
             module_args = arg
 
+        if not self.confirm(module, module_args):
+            callbacks.display("Command canceled by user")
+            return
+
         try:
             opts = self.options
             results = ansible.runner.Runner(
@@ -131,21 +161,28 @@ class AnsibleShell(cmd.Cmd):
 
 
         for (hostname, result) in results['contacted'].items():
-            if 'stderr' in result.keys():
-                if not result['stderr']:
-                    print "%s\n%s" % (stringc(hostname, 'bright gray'), result['stdout'])
-                else:
-                    print "%s >>> %s" % (stringc(hostname, 'red'), result['stderr'])
-            else:
-                if 'failed' not in result.keys():
-                    with colorizer('bright gray'):
-                        print hostname
-                        pprint.pprint(result)
-                else:
-                    print "%s >>> %s" % (stringc(hostname, 'red'), result)
+            print "=============== %-30s ================" % stringc(hostname, 'bright gray')
 
+            if 'stderr' in result.keys():
+                # this is a shell output
+                # maybe both stderr and stdout are set,so try to print them all
+                try:
+                    callbacks.display(result['stdout'], 'green')
+                    callbacks.display(result['stderr'], 'red')
+                except:
+                    pass
+            else:
+                # this is not a shell output
+                if 'failed' not in result.keys():
+                    callbacks.display(utils.jsonify(result,True), 'green')
+                else:
+                    callbacks.display(utils.jsonify(result,True), 'red')
+
+        # connect failed
         for (hostname, result) in results['dark'].items():
-            print "%s >>> %s" % (stringc(hostname, 'red'), result['msg'])
+            print "=============== %s ================" % stringc(hostname, 'red')
+            callbacks.display(result['msg'], 'red')
+
 
     def emptyline(self):
         return
@@ -155,6 +192,9 @@ class AnsibleShell(cmd.Cmd):
 
     def do_serial(self, arg):
         """Set the number of forks"""
+        if not arg:
+            print 'Useage: serial <number>'
+            return
         self.serial = arg
         self.set_prompt()
 
@@ -168,7 +208,7 @@ class AnsibleShell(cmd.Cmd):
             except Exception:
                 self.cwd = ''
         elif arg == '/':
-            self.cwd = ''
+            self.cwd = 'all'
         elif self.ansible.inventory.get_hosts(arg):
             self.cwd = arg
         else:
@@ -181,7 +221,7 @@ class AnsibleShell(cmd.Cmd):
         if arg == 'groups':
             items = self.ansible.inventory.list_groups()
         else:
-            items = self.ansible.inventory.list_hosts('all' if self.cwd == '' else self.cwd)
+            items = self.selected
         for item in items:
             print item
 
