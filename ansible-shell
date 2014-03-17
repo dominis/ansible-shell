@@ -33,9 +33,6 @@ class colorizer(object):
 
 class AnsibleShell(cmd.Cmd):
 
-    ansible = ansible.runner.Runner()
-    groups = ansible.inventory.groups_list().keys()
-    hosts = ansible.inventory.groups_list()['all']
     modules = []
     serial = 2
 
@@ -43,6 +40,9 @@ class AnsibleShell(cmd.Cmd):
 
     def __init__(self, options, args):
         self.options = options
+        self.ansible = ansible.runner.Runner(host_list=self.options.host_list)
+        self.groups = self.ansible.inventory.groups_list().keys()
+        self.hosts = self.ansible.inventory.groups_list()['all']
         self.args = args
         self.intro = 'Welcome to the ansible-shell.\nType help or ? to list commands.\n'
         self.set_prompt()
@@ -67,6 +67,9 @@ class AnsibleShell(cmd.Cmd):
         parser.add_option('-p', '--step', default=False, action="store_true",
                           dest='step',
                           help='one-step-at-a-time: confirm each task before running')
+        parser.add_option('-i', '--inventory', default=C.DEFAULT_HOST_LIST,
+                          dest='host_list',
+                          help='Inventory file')
 
         return parser.parse_args()
 
@@ -147,13 +150,14 @@ class AnsibleShell(cmd.Cmd):
                 module_name=module, module_args=module_args,
                 remote_user=opts.remote_user,
                 sudo=opts.sudo, sudo_user=opts.sudo_user,
-                timeout=int(opts.timeout)
+                timeout=int(opts.timeout),
+                host_list=opts.host_list
             ).run()
+            if results is None:
+                print "No hosts found"
+                return False
         except Exception as e:
             print e.msg
-
-        if results is None:
-            print "No hosts found"
             return False
 
         for (hostname, result) in results['contacted'].items():
