@@ -5,11 +5,12 @@ Interactive shell for ansible built-in tab completion for all the modules.
 
 ![yolo](http://i.imgur.com/rxYlS9T.gif)
 
-## Availabe commands:
+## Available commands:
 
 ```
 cd
 list
+list groups
 serial
 ```
 ## Usage:
