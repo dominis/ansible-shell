@@ -83,12 +83,15 @@ class AnsibleShell(cmd.Cmd):
             self.intro = " "
             self.cmdloop()
 
-    def set_prompt(self):
+    def set_prompt(self, is_colored=False):
         self.selected = self.ansible.inventory.list_hosts(self.cwd)
-        self.prompt = stringc(self.options.remote_user + '@' + self.cwd, 'green')
-        self.prompt += stringc(' (' + str(len(self.selected)) + ')', 'red')
-        self.prompt += '[s:' + stringc(str(self.serial), 'green') + ']'
-        self.prompt += '$ '
+        if is_colored:
+            self.prompt = stringc(self.options.remote_user + '@' + self.cwd, 'green')
+            self.prompt += stringc(' (' + str(len(self.selected)) + ')', 'red')
+            self.prompt += '[s:' + stringc(str(self.serial), 'green') + ']'
+            self.prompt += '$ '
+        else:
+            self.prompt = "%s@%s (%d)[s:%d]$ " % (self.options.remote_user, self.cwd, len(self.selected), self.serial)
 
     def list_modules(self):
         modules = []
