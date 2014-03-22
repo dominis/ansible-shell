@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import re
 import cmd
 import ansible.runner
 from ansible.color import stringc, codeCodes
@@ -16,7 +17,8 @@ import readline
 import rlcompleter
 import atexit
 from optparse import OptionParser
-
+from sshtail import SSHMultiTailer
+from colorama import init, Fore
 
 class colorizer(object):
     def __init__(self, color):
@@ -34,7 +36,7 @@ class colorizer(object):
 class AnsibleShell(cmd.Cmd):
 
     modules = []
-    serial = 2
+    serial = 20
 
     cwd = ''
 
@@ -64,9 +66,9 @@ class AnsibleShell(cmd.Cmd):
         parser.add_option('-u', '--user', default=C.DEFAULT_REMOTE_USER,
                           dest='remote_user',
                           help='connect as this user (default=%s)' % C.DEFAULT_REMOTE_USER)
-        parser.add_option('-p', '--step', default=False, action="store_true",
+        parser.add_option('-p', '--step', default=True, action="store_false",
                           dest='step',
-                          help='one-step-at-a-time: confirm each task before running')
+                          help='one-step-at-a-time: confirm each task before running(default:True)')
         parser.add_option('-i', '--inventory', default=C.DEFAULT_HOST_LIST,
                           dest='host_list',
                           help='Inventory file')
@@ -91,7 +93,7 @@ class AnsibleShell(cmd.Cmd):
             self.prompt += '[s:' + stringc(str(self.serial), 'green') + ']'
             self.prompt += '$ '
         else:
-            self.prompt = "%s@%s (%d)[s:%d]$ " % (self.options.remote_user, self.cwd, len(self.selected), self.serial)
+            self.prompt = "%s@%s (%d)[s:%d]$" % (self.options.remote_user, self.cwd, len(self.selected), self.serial)
 
     def list_modules(self):
         modules = []
@@ -201,7 +203,7 @@ class AnsibleShell(cmd.Cmd):
         self.serial = arg
         self.set_prompt()
 
-    def do_cd(self, arg):
+    def do_xx(self, arg):
         """Change active host/group"""
         if not arg:
             self.cwd = ''
@@ -227,6 +229,53 @@ class AnsibleShell(cmd.Cmd):
             items = self.selected
         for item in items:
             print item
+
+    def do_oo(self, arg):
+        """ command oo is just an alias of tail"""
+        self.do_tail(arg)
+
+    def do_tail(self, arg):
+        """ tail file on muti hosts """
+        if not self.selected:
+            print "No host selecetd"
+            return
+        if not arg or not arg.startswith('file='):
+            print "Useage: tail file=FILE [include=INCLUDE_PATTERN] [exclude=EXCLUDE_PATTERN] [pull=2.0]"
+            return
+
+        # parse args
+        options = utils.parse_kv(arg)
+        file    = options.get('file', None)
+        include = options.get('include', None)
+        exclude = options.get('exclude', None)
+        poll    = options.get('poll', 2.0)
+
+        #prepare regex
+        regex_include = None
+        regex_exclude = None
+        if include:
+            regex_include = re.compile(include)
+        if exclude:
+            regex_exclude = re.compile(exclude)
+        #prepare sources
+        sources = {}
+        for host in self.selected:
+            hostname = host.name if isinstance(host, Host) else host
+            sources[hostname] = file.split(',')
+
+        tailer = SSHMultiTailer(host_files=sources, poll_interval=poll, gss_auth=C.ANSIBLE_SSH_USE_GSSAPI)
+        try:
+            for host, filename, line in tailer.tail():
+                #filter out dismatch or exclude lines
+                if regex_include and not regex_include.search(line):
+                    continue
+                elif regex_include:
+                    line = re.sub(regex_include, Fore.RED + r'\g<0>' + Fore.RESET, line)
+                if regex_exclude and regex_exclude.search(line):
+                    continue
+                print "%s: %s" % (stringc(host, 'green'), line)
+        except Exception,e:
+            print e
 
     def do_sudo(self, arg):
         """Toggle whether plays run with sudo"""
@@ -266,7 +315,7 @@ class AnsibleShell(cmd.Cmd):
             for opt in oc['options'].keys():
                 print '  ' + stringc(opt, 'white') + ' ' + oc['options'][opt]['description'][0]
 
-    def complete_cd(self, text, line, begidx, endidx):
+    def complete_xx(self, text, line, begidx, endidx):
         mline = line.partition(' ')[2]
         offs = len(mline) - len(text)
 
@@ -277,6 +326,15 @@ class AnsibleShell(cmd.Cmd):
 
         return [s[offs:] for s in completions if s.startswith(mline)]
 
+    def complete_oo(self, text, line, begidx, endidx):
+        return self.complete_tail(text, line, begidx, endidx)
+
+    def complete_tail(self, text, line, begidx, endidx):
+       mline = line.split(' ')[-1]
+       offs = len(mline) - len(text)
+       completions = ['file','include', 'exclude', 'poll']
+       return [s[offs:] + '=' for s in completions if s.startswith(mline)]
+    
     def completedefault(self, text, line, begidx, endidx):
         if line.split()[0] in self.modules:
             mline = line.split(' ')[-1]
