@@ -10,7 +10,7 @@ setup(
     description='Interactive shell for ansible',
     install_requires=[
         "ansible >= 1.3",
-		"colorama >= 0.2.7",
-		"sshtail"
+        "colorama >= 0.2.7",
+        "sshtail"
     ],
 )

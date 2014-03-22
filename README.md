@@ -8,9 +8,11 @@ Interactive shell for ansible built-in tab completion for all the modules.
 ## Availabe commands:
 
 ```
-cd
+xx(former cd)
+tail(oo)
 list
 serial
+<module> <module_args>
 ```
 ## Usage:
 ```
@@ -18,7 +20,7 @@ serial
 Welcome to the ansible-shell.
 Type help or ? to list commands.
 
-ansible# /> cd app-pool
+ansible# /> xx app-pool
 ansible# /app-pool (12)> list
 app01.bfc.kinja.com
 app02.bfc.kinja.com
