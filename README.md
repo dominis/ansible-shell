@@ -1,9 +1,33 @@
 # ansible-shell
 
 
-Interactive shell for ansible built-in tab completion for all the modules.
+Interactive shell for Ansible with built-in tab completion for all the modules.
 
 ![yolo](http://i.imgur.com/rxYlS9T.gif)
+
+## Installation
+
+For the latest release version:
+
+    $ pip install ansible-shell
+
+For the latest development version:
+
+    $ pip install git+https://github.com/dominis/ansible-shell.git#egg=ansible-shell
+
+You can upgrade an existing installation by specifying an `--upgrade` option
+with the same command for whichever method you used above.
+
+If you wish to hack on `ansible-shell`, you can install with pip's "editable"
+mode -- the `ansible-shell` command available on your system will be linked to
+your working copy of the code:
+
+    $ git clone https://github.com/dominis/ansible-shell.git
+    $ pip install -e ./ansible-shell
+
+See [the pip documentation] if you need to learn more about pip.
+
+[the pip documentation]: http://pip.readthedocs.org/en/latest/reference/pip_install.html
 
 ## Available commands:
 
@@ -13,7 +37,9 @@ list
 list groups
 serial
 ```
+
 ## Usage:
+
 ```
 [root@aaa ~]# ansible-shell
 Welcome to the ansible-shell.
