@@ -109,11 +109,11 @@ class AnsibleShell(cmd.Cmd):
             callbacks.display("\t%s" % hostname,"green")
 
         callbacks.display("\nSUMMARY: host_num[%d] module[%s] module_args[%s] options[%s]\n" % (len(self.selected), module, module_args, self.options),"bright blue")
-   
+
         answer=False
         try:
-            print "Do you confirm to excute?[y/N]:(default=No) ",
-            # cmd module use raw_input to read user command by default, to avoid our ansewer here 'logged' into history, 
+            print "Do you confirm to execute?[y/N]:(default=No) ",
+            # cmd module use raw_input to read user command by default, to avoid our answer here 'logged' into history,
             # use sys.stdin.readline instead of raw_input, see more at http://docs.python.org/2/library/cmd.html#cmd.Cmd.use_rawinput
             answer = sys.stdin.readline()[:-1]
         except:
@@ -193,7 +193,7 @@ class AnsibleShell(cmd.Cmd):
     def do_serial(self, arg):
         """Set the number of forks"""
         if not arg:
-            print 'Useage: serial <number>'
+            print 'Usage: serial <number>'
             return
         self.serial = arg
         self.set_prompt()
