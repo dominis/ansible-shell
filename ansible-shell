@@ -16,6 +16,7 @@ import readline
 import rlcompleter
 import atexit
 from optparse import OptionParser
+import ConfigParser
 
 
 class colorizer(object):
@@ -40,6 +41,7 @@ class AnsibleShell(cmd.Cmd):
 
     def __init__(self, options, args):
         self.options = options
+        self.read_settings(self.options.config)
         self.ansible = ansible.runner.Runner(host_list=self.options.host_list)
         self.groups = self.ansible.inventory.groups_list().keys()
         self.hosts = self.ansible.inventory.groups_list()['all']
@@ -51,6 +53,20 @@ class AnsibleShell(cmd.Cmd):
             setattr(self, 'do_' + module, lambda arg, module=module: self.default(module + ' ' + arg))
             setattr(self, 'help_' + module, lambda module=module: self.helpdefault(module))
         cmd.Cmd.__init__(self)
+        
+    def read_settings(self,conf):
+        """ Reads the settings from the ansible.ini file """
+
+        conf_file = os.path.expanduser(conf)
+        if not os.path.exists(conf_file):
+            print 'config file not exist'
+            return
+
+        config = ConfigParser.SafeConfigParser()
+        config.read(conf_file)
+
+        self.cwd  = config.get('ansible-shell', 'cwd')
+        self.serial = config.getint('ansible-shell', 'serial')
 
     @staticmethod
     def parse_opts():
@@ -70,6 +86,9 @@ class AnsibleShell(cmd.Cmd):
         parser.add_option('-i', '--inventory', default=C.DEFAULT_HOST_LIST,
                           dest='host_list',
                           help='Inventory file')
+        parser.add_option('-F', '--config', default='~/.ansible/ansible.ini',
+                          dest='config',
+                          help='config file for ansible-shell')
 
         return parser.parse_args()
 
