@@ -12,8 +12,10 @@ import ansible.utils.module_docs as module_docs
 import sys
 import os
 import pwd
+import time
 import readline
 import rlcompleter
+import subprocess
 import atexit
 from optparse import OptionParser
 
@@ -206,6 +208,22 @@ class AnsibleShell(cmd.Cmd):
             return
         self.options.serial = arg
         self.set_prompt()
+
+    def do_local(self, arg):
+        if not arg:
+            return
+
+        p = subprocess.Popen(arg, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1)
+        while True:
+            retcode = p.poll()
+            if retcode is not None:
+                if retcode != 0:
+                    print stringc("RETCODE: %d" % retcode,  'red')
+                break
+            else:
+                for line in iter(p.stdout.readline, b''):
+                    print line
+                time.sleep(0.1)
 
     def do_cd(self, arg):
         """Change active host/group"""
