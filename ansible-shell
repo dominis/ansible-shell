@@ -204,7 +204,7 @@ class AnsibleShell(cmd.Cmd):
         if not arg:
             print 'Usage: serial <number>'
             return
-        self.options.serial = arg
+        self.options.serial = int(arg)
         self.set_prompt()
 
     def do_cd(self, arg):
