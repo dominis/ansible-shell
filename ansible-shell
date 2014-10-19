@@ -161,20 +161,31 @@ class AnsibleShell(cmd.Cmd):
 
         contacted = {}
         dark = {}
+        # TODO: interrupting still doesn't really work
+        interrupted = False
         for batch_hosts in batches:
-            self.ansible.inventory.also_restrict_to(batch_hosts)
-            results = self._run_module(module, module_args)
-            self.ansible.inventory.lift_also_restriction()
+            try:
+                self.ansible.inventory.also_restrict_to(batch_hosts)
+                results = self._run_module(module, module_args)
+                if results is False:
+                    interrupted = True
+            finally:
+                self.ansible.inventory.lift_also_restriction()
+
+            if interrupted:
+                print
+                break
 
             self._print_contacted_hosts(results['contacted'])
             contacted.update(results['contacted'])
             dark.update(results['dark'])
-
             self._print_progress_line(contacted, dark)
 
-        self._print_dark_hosts(dark)
-        self._print_progress_line(contacted, dark)
-        print
+        if not interrupted:
+            # TODO: use callback_plugin to get partial stats
+            self._print_dark_hosts(dark)
+            self._print_progress_line(contacted, dark)
+            print
 
     def _run_module(self, module, module_args):
         try:
@@ -188,7 +199,7 @@ class AnsibleShell(cmd.Cmd):
                 inventory=self.ansible.inventory
             ).run()
         except Exception as e:
-            print e.msg
+            print unicode(e)
             return False
 
         return results
