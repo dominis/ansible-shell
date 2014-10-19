@@ -152,19 +152,27 @@ class AnsibleShell(cmd.Cmd):
             callbacks.display("Command canceled by user")
             return
 
+        opts = self.options
+        batches = get_hosts_batches(
+            self.ansible.inventory.list_hosts(opts.cwd),
+            opts.serial)
+
+        for batch_hosts in batches:
+            self.ansible.inventory.also_restrict_to(batch_hosts)
+            self._run_module(module, module_args)
+            self.ansible.inventory.lift_also_restriction()
+
+    def _run_module(self, module, module_args):
         try:
             opts = self.options
             results = ansible.runner.Runner(
-                pattern=self.options.cwd, forks=self.options.serial,
+                pattern=self.options.cwd,
                 module_name=module, module_args=module_args,
                 remote_user=opts.remote_user,
                 sudo=opts.sudo, sudo_user=opts.sudo_user,
                 timeout=int(opts.timeout),
-                host_list=opts.host_list
+                inventory=self.ansible.inventory
             ).run()
-            if results is None:
-                print "No hosts found"
-                return False
         except Exception as e:
             print e.msg
             return False
@@ -191,7 +199,6 @@ class AnsibleShell(cmd.Cmd):
         for (hostname, result) in results['dark'].items():
             print "=============== %s ================" % stringc(hostname, 'red')
             callbacks.display(result['msg'], 'red')
-
 
     def emptyline(self):
         return
@@ -298,6 +305,20 @@ class AnsibleShell(cmd.Cmd):
 
     def do_dump(self, a):
         print readline.get_current_history_length()
+
+
+def get_hosts_batches(hosts, serial):
+    """Return hosts from inventory in batches based on the `serial` option"""
+    if not hosts:
+        return []
+    if serial == 0:
+        return [hosts]
+    serialized_batch = []
+    all_hosts = list(hosts)
+    while all_hosts:
+        serialized_batch.append(all_hosts[:serial])
+        del all_hosts[:serial]
+    return serialized_batch
 
 
 if __name__ == '__main__':
