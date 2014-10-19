@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import cmd
+import curses.ascii
 import ansible.runner
 from ansible.color import stringc, codeCodes
 import ansible.constants as C
@@ -11,6 +12,7 @@ from ansible.inventory import Host
 import ansible.utils.module_docs as module_docs
 import sys
 import os
+import operator
 import pwd
 import readline
 import rlcompleter
@@ -157,10 +159,22 @@ class AnsibleShell(cmd.Cmd):
             self.ansible.inventory.list_hosts(opts.cwd),
             opts.serial)
 
+        contacted = {}
+        dark = {}
         for batch_hosts in batches:
             self.ansible.inventory.also_restrict_to(batch_hosts)
-            self._run_module(module, module_args)
+            results = self._run_module(module, module_args)
             self.ansible.inventory.lift_also_restriction()
+
+            self._print_contacted_hosts(results['contacted'])
+            contacted.update(results['contacted'])
+            dark.update(results['dark'])
+
+            self._print_progress_line(contacted, dark)
+
+        self._print_dark_hosts(dark)
+        self._print_progress_line(contacted, dark)
+        print
 
     def _run_module(self, module, module_args):
         try:
@@ -177,7 +191,10 @@ class AnsibleShell(cmd.Cmd):
             print e.msg
             return False
 
-        for (hostname, result) in results['contacted'].items():
+        return results
+
+    def _print_contacted_hosts(self, contacted):
+        for (hostname, result) in contacted.items():
             print "=============== %-30s ================" % stringc(hostname, 'bright gray')
 
             if 'stderr' in result.keys():
@@ -195,10 +212,30 @@ class AnsibleShell(cmd.Cmd):
                 else:
                     callbacks.display(utils.jsonify(result,True), 'red')
 
+    def _print_dark_hosts(self, dark):
         # connect failed
-        for (hostname, result) in results['dark'].items():
+        for (hostname, result) in dark.items():
             print "=============== %s ================" % stringc(hostname, 'red')
             callbacks.display(result['msg'], 'red')
+
+    def _print_progress_line(self, contacted, dark):
+        failures = 0
+        successes = 0
+        for result in contacted.values():
+            if result.get('failed') or result.get('rc', 0) != 0:
+                failures += 1
+            else:
+                successes += 1
+
+        sys.stdout.write(
+            u'Done: {done}/{all}, success: {successes}, failures: {failures}, dark: {dark}{CR}'
+            .format(
+                done=len(contacted) + len(dark),
+                all=len(self.ansible.inventory.list_hosts(self.options.cwd)),
+                successes=stringc(unicode(successes), 'green') if successes else '0',
+                failures=stringc(unicode(failures), 'red') if failures else '0',
+                dark=stringc(unicode(len(dark)), 'red') if dark else '0',
+                CR=chr(curses.ascii.CR)))
 
     def emptyline(self):
         return
@@ -337,4 +374,3 @@ if __name__ == '__main__':
 
     (options, args) = AnsibleShell.parse_opts()
     AnsibleShell(options, args).cmdloop()
-
