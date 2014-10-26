@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import cmd
+import curses.ascii
 import ansible.runner
 from ansible.color import stringc, codeCodes
 import ansible.constants as C
@@ -11,6 +12,7 @@ from ansible.inventory import Host
 import ansible.utils.module_docs as module_docs
 import sys
 import os
+import operator
 import pwd
 import readline
 import rlcompleter
@@ -152,24 +154,58 @@ class AnsibleShell(cmd.Cmd):
             callbacks.display("Command canceled by user")
             return
 
+        opts = self.options
+        batches = get_hosts_batches(
+            self.ansible.inventory.list_hosts(opts.cwd),
+            opts.serial)
+
+        contacted = {}
+        dark = {}
+        # TODO: interrupting still doesn't really work
+        interrupted = False
+        for batch_hosts in batches:
+            try:
+                self.ansible.inventory.also_restrict_to(batch_hosts)
+                results = self._run_module(module, module_args)
+                if results is False:
+                    interrupted = True
+            finally:
+                self.ansible.inventory.lift_also_restriction()
+
+            if interrupted:
+                print
+                break
+
+            self._print_contacted_hosts(results['contacted'])
+            contacted.update(results['contacted'])
+            dark.update(results['dark'])
+            self._print_progress_line(contacted, dark)
+
+        if not interrupted:
+            # TODO: use callback_plugin to get partial stats
+            self._print_dark_hosts(dark)
+            self._print_progress_line(contacted, dark)
+            print
+
+    def _run_module(self, module, module_args):
         try:
             opts = self.options
             results = ansible.runner.Runner(
-                pattern=self.options.cwd, forks=self.options.serial,
+                pattern=self.options.cwd,
                 module_name=module, module_args=module_args,
                 remote_user=opts.remote_user,
                 sudo=opts.sudo, sudo_user=opts.sudo_user,
                 timeout=int(opts.timeout),
-                host_list=opts.host_list
+                inventory=self.ansible.inventory
             ).run()
-            if results is None:
-                print "No hosts found"
-                return False
         except Exception as e:
-            print e.msg
+            print unicode(e)
             return False
 
-        for (hostname, result) in results['contacted'].items():
+        return results
+
+    def _print_contacted_hosts(self, contacted):
+        for (hostname, result) in contacted.items():
             print "=============== %-30s ================" % stringc(hostname, 'bright gray')
 
             if 'stderr' in result.keys():
@@ -187,11 +223,30 @@ class AnsibleShell(cmd.Cmd):
                 else:
                     callbacks.display(utils.jsonify(result,True), 'red')
 
+    def _print_dark_hosts(self, dark):
         # connect failed
-        for (hostname, result) in results['dark'].items():
+        for (hostname, result) in dark.items():
             print "=============== %s ================" % stringc(hostname, 'red')
             callbacks.display(result['msg'], 'red')
 
+    def _print_progress_line(self, contacted, dark):
+        failures = 0
+        successes = 0
+        for result in contacted.values():
+            if result.get('failed') or result.get('rc', 0) != 0:
+                failures += 1
+            else:
+                successes += 1
+
+        sys.stdout.write(
+            u'Done: {done}/{all}, success: {successes}, failures: {failures}, dark: {dark}{CR}'
+            .format(
+                done=len(contacted) + len(dark),
+                all=len(self.ansible.inventory.list_hosts(self.options.cwd)),
+                successes=stringc(unicode(successes), 'green') if successes else '0',
+                failures=stringc(unicode(failures), 'red') if failures else '0',
+                dark=stringc(unicode(len(dark)), 'red') if dark else '0',
+                CR=chr(curses.ascii.CR)))
 
     def emptyline(self):
         return
@@ -300,6 +355,20 @@ class AnsibleShell(cmd.Cmd):
         print readline.get_current_history_length()
 
 
+def get_hosts_batches(hosts, serial):
+    """Return hosts from inventory in batches based on the `serial` option"""
+    if not hosts:
+        return []
+    if serial == 0:
+        return [hosts]
+    serialized_batch = []
+    all_hosts = list(hosts)
+    while all_hosts:
+        serialized_batch.append(all_hosts[:serial])
+        del all_hosts[:serial]
+    return serialized_batch
+
+
 if __name__ == '__main__':
     # This hack is to work around readline issues on a mac:
     #  http://stackoverflow.com/a/7116997/541202
@@ -316,4 +385,3 @@ if __name__ == '__main__':
 
     (options, args) = AnsibleShell.parse_opts()
     AnsibleShell(options, args).cmdloop()
-
