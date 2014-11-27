@@ -101,9 +101,10 @@ class AnsibleShell(cmd.Cmd):
 
     def list_modules(self):
         modules = []
-        for root, dirs, files in os.walk(C.DEFAULT_MODULE_PATH):
-            for basename in files:
-                modules.append(basename)
+        if C.DEFAULT_MODULE_PATH:
+            for root, dirs, files in os.walk(C.DEFAULT_MODULE_PATH):
+                for basename in files:
+                    modules.append(basename)
 
         return modules
 
