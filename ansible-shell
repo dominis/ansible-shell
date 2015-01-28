@@ -1,5 +1,36 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+
+# (c) 2014, Nandor Sivok <dominis@haxor.hu>
+#
+# ansible-shel is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# ansible-shell is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
+#
+#
+# ansible-shell is an interactive shell for ansible
+# with built-in tab completion for all the documented modules
+#
+# Available commands:
+#  cd - change host/group (you can use host patterns eg.: app*.dc*:!app01*)
+#  list - list available hosts in the current path
+#  forks - change fork
+#  sudo - sudo
+#  ! - forces shell module instead of the ansible module (!yum update -y)
+#
+# Configuration:
+# create a [ansible-shell] section in your ansbile.cfg
+#  cwd=app-servers - you can set your default host pattern
+#  forks=100 - default forks
+
 
 import cmd
 import ansible.runner
@@ -15,7 +46,6 @@ import pwd
 import readline
 import rlcompleter
 import atexit
-from optparse import OptionParser
 
 
 class colorizer(object):
@@ -37,15 +67,16 @@ class AnsibleShell(cmd.Cmd):
 
     def __init__(self, options, args):
         self.options = options
-        self.options.cwd = ''
-        self.options.serial = 2
-        self.ansible = ansible.runner.Runner(host_list=self.options.host_list)
+        self.options.cwd = '*'
+        self.ansible = ansible.runner.Runner(host_list=self.options.inventory)
         self.groups = self.ansible.inventory.groups_list().keys()
         self.hosts = self.ansible.inventory.groups_list()['all']
+        self.callbacks = callbacks.CliRunnerCallbacks()
         self.read_config_file()
         self.intro = 'Welcome to the ansible-shell.\nType help or ? to list commands.\n'
         self.set_prompt()
         self.modules = self.list_modules()
+        #self.modules.remove('shell')
         for module in self.modules:
             setattr(self, 'do_' + module, lambda arg, module=module: self.default(module + ' ' + arg))
             setattr(self, 'help_' + module, lambda module=module: self.helpdefault(module))
@@ -55,7 +86,7 @@ class AnsibleShell(cmd.Cmd):
         allowed_items = {
             # name: type
             'cwd': 'str',
-            'serial': 'int',
+            'forks': 'int',
         }
         config = C.load_config_file()
         if config is not None and config.has_section('ansible-shell'):
@@ -66,22 +97,21 @@ class AnsibleShell(cmd.Cmd):
 
     @staticmethod
     def parse_opts():
-        parser = OptionParser()
-        parser.add_option("-s", "--sudo", default=False, action="store_true",
-                          dest='sudo', help="run operations with sudo (nopasswd)")
-        parser.add_option('-U', '--sudo-user', dest='sudo_user',
-                          help='desired sudo user (default=root)', default="root")
-        parser.add_option('-t', '--timeout', dest='timeout', default=5,
-                          help='timeout (default=5)')
-        parser.add_option('-u', '--user', default=C.DEFAULT_REMOTE_USER,
-                          dest='remote_user',
-                          help='connect as this user (default=%s)' % C.DEFAULT_REMOTE_USER)
+        parser = utils.base_parser(
+            constants=C,
+            runas_opts=True,
+            subset_opts=True,
+            async_opts=True,
+            output_opts=True,
+            connect_opts=True,
+            check_opts=True,
+            diff_opts=False,
+            usage='%prog <host-pattern> [options]'
+        )
+
         parser.add_option('-p', '--step', default=False, action="store_true",
                           dest='step',
                           help='one-step-at-a-time: confirm each task before running')
-        parser.add_option('-i', '--inventory', default=C.DEFAULT_HOST_LIST,
-                          dest='host_list',
-                          help='Inventory file')
 
         return parser.parse_args()
 
@@ -92,18 +122,19 @@ class AnsibleShell(cmd.Cmd):
         try:
             cmd.Cmd.cmdloop(self)
         except KeyboardInterrupt:
-            self.intro = " "
-            self.cmdloop()
+            self.do_exit(self)
 
     def set_prompt(self):
         self.selected = self.ansible.inventory.list_hosts(self.options.cwd)
-        self.prompt = "%s@%s (%d)[s:%d]$ " % (self.options.remote_user, self.options.cwd, len(self.selected), self.options.serial)
+        self.prompt = "%s@%s (%d)[f:%s]$ " % (self.options.remote_user, self.options.cwd, len(self.selected), self.options.forks)
 
     def list_modules(self):
         modules = []
-        for root, dirs, files in os.walk(C.DEFAULT_MODULE_PATH):
-            for basename in files:
-                modules.append(basename)
+
+        if self.options.module_path:
+            for root, dirs, files in os.walk(self.options.module_path):
+                for basename in files:
+                    modules.append(basename)
 
         return modules
 
@@ -152,15 +183,27 @@ class AnsibleShell(cmd.Cmd):
             callbacks.display("Command canceled by user")
             return
 
+        self.options.module_name = module
+        self.callbacks.options = self.options
+
         try:
-            opts = self.options
             results = ansible.runner.Runner(
-                pattern=self.options.cwd, forks=self.options.serial,
-                module_name=module, module_args=module_args,
-                remote_user=opts.remote_user,
-                sudo=opts.sudo, sudo_user=opts.sudo_user,
-                timeout=int(opts.timeout),
-                host_list=opts.host_list
+                pattern=self.options.cwd,
+                module_name=module,
+                module_args=module_args,
+                host_list=self.options.inventory,
+                remote_user=self.options.remote_user,
+                timeout=self.options.timeout,
+                private_key_file=self.options.private_key_file,
+                forks=self.options.forks,
+                sudo=self.options.sudo,
+                sudo_user=self.options.sudo_user,
+                transport=self.options.connection,
+                subset=self.options.subset,
+                check=self.options.check,
+                diff=self.options.check,
+                callbacks=self.callbacks,
+                su=self.options.su
             ).run()
             if results is None:
                 print "No hosts found"
@@ -169,48 +212,44 @@ class AnsibleShell(cmd.Cmd):
             print e.msg
             return False
 
-        for (hostname, result) in results['contacted'].items():
-            print "=============== %-30s ================" % stringc(hostname, 'bright gray')
-
-            if 'stderr' in result.keys():
-                # this is a shell output
-                # maybe both stderr and stdout are set,so try to print them all
-                try:
-                    callbacks.display(result['stdout'], 'green')
-                    callbacks.display(result['stderr'], 'red')
-                except:
-                    pass
-            else:
-                # this is not a shell output
-                if 'failed' not in result.keys():
-                    callbacks.display(utils.jsonify(result,True), 'green')
-                else:
-                    callbacks.display(utils.jsonify(result,True), 'red')
-
-        # connect failed
-        for (hostname, result) in results['dark'].items():
-            print "=============== %s ================" % stringc(hostname, 'red')
-            callbacks.display(result['msg'], 'red')
-
-
     def emptyline(self):
         return
 
     def do_shell(self, arg):
+        """
+        You can run shell commands through the shell module.
+
+        eg.:
+        shell ps uax | grep java | wc -l
+        shell killall python
+        shell halt -n
+
+        You can use the ! to force the shell module. eg.:
+        !ps aux | grep java | wc -l
+        """
         self.default(arg, True)
 
-    def do_serial(self, arg):
+    def do_forks(self, arg):
         """Set the number of forks"""
         if not arg:
-            print 'Usage: serial <number>'
+            print 'Usage: forks <number>'
             return
-        self.options.serial = int(arg)
+        self.options.forks = int(arg)
         self.set_prompt()
 
+    do_serial = do_forks
+
     def do_cd(self, arg):
-        """Change active host/group"""
+        """
+            Change active host/group. You can use hosts patterns as well eg.:
+            cd webservers
+            cd webservers:dbservers
+            cd webservers:!phoenix
+            cd webservers:&staging
+            cd webservers:dbservers:&staging:!phoenix
+        """
         if not arg:
-            self.options.cwd = ''
+            self.options.cwd = '*'
         elif arg == '..':
             try:
                 self.options.cwd = self.ansible.inventory.groups_for_host(self.options.cwd)[1].name
@@ -221,7 +260,7 @@ class AnsibleShell(cmd.Cmd):
         elif self.ansible.inventory.get_hosts(arg):
             self.options.cwd = arg
         else:
-            print "incorrect path"
+            print "no host matched"
 
         self.set_prompt()
 
@@ -255,13 +294,12 @@ class AnsibleShell(cmd.Cmd):
             print "Please specify a sudo user, e.g. `sudo_user jenkins`"
             print "Current sudo user is %s" % self.options.sudo_user
 
-    def do_EOF(self, args):
+    def do_exit(self, args):
+        """Exits from the console"""
         sys.stdout.write('\n')
         return -1
 
-    def do_exit(self, args):
-        """Exits from the console"""
-        return -1
+    do_EOF = do_exit
 
     def helpdefault(self, module_name):
         if module_name in self.modules:
@@ -276,7 +314,7 @@ class AnsibleShell(cmd.Cmd):
         mline = line.partition(' ')[2]
         offs = len(mline) - len(text)
 
-        if self.options.cwd == '':
+        if self.options.cwd == '*':
             completions = self.hosts + self.groups
         else:
             completions = self.ansible.inventory.list_hosts(self.options.cwd)
@@ -295,9 +333,6 @@ class AnsibleShell(cmd.Cmd):
         in_path = utils.plugins.module_finder.find_plugin(module_name)
         oc, a = ansible.utils.module_docs.get_docstring(in_path)
         return oc['options'].keys()
-
-    def do_dump(self, a):
-        print readline.get_current_history_length()
 
 
 if __name__ == '__main__':
