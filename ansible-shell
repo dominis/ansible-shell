@@ -129,14 +129,23 @@ class AnsibleShell(cmd.Cmd):
         self.prompt = "%s@%s (%d)[f:%s]$ " % (self.options.remote_user, self.options.cwd, len(self.selected), self.options.forks)
 
     def list_modules(self):
-        modules = []
-
-        if self.options.module_path:
-            for root, dirs, files in os.walk(self.options.module_path):
-                for basename in files:
-                    modules.append(basename)
+        modules = set()
+        module_paths = ansible.utils.plugins.module_finder._get_paths()
+        for path in module_paths:
+            modules.update(self._find_modules_in_path(path))
 
         return modules
+
+    def _find_modules_in_path(self, path):
+        """Generate a list of potential modules in a given path"""
+        for root, dirs, files in os.walk(path):
+            for basename in files:
+                module_name = basename.split('.')[0]
+                ext = basename.split('.')[-1] if '.' in basename else None
+                if not module_name.startswith('_') and \
+                   ext in ('py', 'ps1', None) and \
+                   module_name in utils.plugins.module_finder:
+                    yield module_name
 
     def confirm(self, module, module_args):
         if not self.options.step:
@@ -209,7 +218,7 @@ class AnsibleShell(cmd.Cmd):
                 print "No hosts found"
                 return False
         except Exception as e:
-            print e.msg
+            print unicode(e)
             return False
 
     def emptyline(self):
