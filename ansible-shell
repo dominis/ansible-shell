@@ -38,8 +38,9 @@ from ansible.color import stringc, codeCodes
 import ansible.constants as C
 from ansible import utils
 from ansible import callbacks
-from ansible.inventory import Host
+from ansible.inventory import Inventory, Host
 import ansible.utils.module_docs as module_docs
+import getpass
 import sys
 import os
 import pwd
@@ -68,7 +69,12 @@ class AnsibleShell(cmd.Cmd):
     def __init__(self, options, args):
         self.options = options
         self.options.cwd = '*'
-        self.ansible = ansible.runner.Runner(host_list=self.options.inventory)
+        self.vault_password = self.load_vault_password()
+        self.ansible = ansible.runner.Runner(
+            inventory=Inventory(self.options.inventory,
+                                vault_password=self.vault_password),
+            vault_pass=self.vault_password,
+        )
         self.groups = self.ansible.inventory.groups_list().keys()
         self.hosts = self.ansible.inventory.groups_list()['all']
         self.callbacks = callbacks.CliRunnerCallbacks()
@@ -81,6 +87,18 @@ class AnsibleShell(cmd.Cmd):
             setattr(self, 'do_' + module, lambda arg, module=module: self.default(module + ' ' + arg))
             setattr(self, 'help_' + module, lambda module=module: self.helpdefault(module))
         cmd.Cmd.__init__(self)
+
+    def load_vault_password(self):
+        """Return the vault password based on self.options and user input"""
+        if self.options.ask_vault_pass and self.options.vault_password_file:
+            raise ValueError(
+                'Cannot use both --ask-vault-pass and --vault-password-file')
+
+        if self.options.ask_vault_pass:
+            return getpass.getpass('Vault password: ')
+        if self.options.vault_password_file:
+            with open(self.options.vault_password_file) as f:
+                return f.read().strip()
 
     def read_config_file(self):
         allowed_items = {
@@ -200,7 +218,6 @@ class AnsibleShell(cmd.Cmd):
                 pattern=self.options.cwd,
                 module_name=module,
                 module_args=module_args,
-                host_list=self.options.inventory,
                 remote_user=self.options.remote_user,
                 timeout=self.options.timeout,
                 private_key_file=self.options.private_key_file,
@@ -212,7 +229,9 @@ class AnsibleShell(cmd.Cmd):
                 check=self.options.check,
                 diff=self.options.check,
                 callbacks=self.callbacks,
-                su=self.options.su
+                su=self.options.su,
+                inventory=self.ansible.inventory,
+                vault_pass=self.vault_password,
             ).run()
             if results is None:
                 print "No hosts found"
