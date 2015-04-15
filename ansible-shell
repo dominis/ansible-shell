@@ -23,7 +23,7 @@
 #  cd - change host/group (you can use host patterns eg.: app*.dc*:!app01*)
 #  list - list available hosts in the current path
 #  forks - change fork
-#  sudo - sudo
+#  become - become
 #  ! - forces shell module instead of the ansible module (!yum update -y)
 #
 # Configuration:
@@ -69,7 +69,7 @@ class AnsibleShell(cmd.Cmd):
     def __init__(self, options, args):
         self.options = options
         self.options.cwd = '*'
-        self.vault_password = self.load_vault_password()
+        self.ssh_password, self.become_password, self.vault_password = self.load_passwords()
         self.ansible = ansible.runner.Runner(
             inventory=Inventory(self.options.inventory,
                                 vault_password=self.vault_password),
@@ -88,17 +88,12 @@ class AnsibleShell(cmd.Cmd):
             setattr(self, 'help_' + module, lambda module=module: self.helpdefault(module))
         cmd.Cmd.__init__(self)
 
-    def load_vault_password(self):
-        """Return the vault password based on self.options and user input"""
-        if self.options.ask_vault_pass and self.options.vault_password_file:
-            raise ValueError(
-                'Cannot use both --ask-vault-pass and --vault-password-file')
-
-        if self.options.ask_vault_pass:
-            return getpass.getpass('Vault password: ')
-        if self.options.vault_password_file:
-            with open(self.options.vault_password_file) as f:
-                return f.read().strip()
+    def load_passwords(self):
+        return utils.ask_passwords(
+                self.options.ask_pass,
+                self.options.become_ask_pass,
+                self.options.ask_vault_pass
+                )
 
     def read_config_file(self):
         allowed_items = {
@@ -222,14 +217,15 @@ class AnsibleShell(cmd.Cmd):
                 timeout=self.options.timeout,
                 private_key_file=self.options.private_key_file,
                 forks=self.options.forks,
-                sudo=self.options.sudo,
-                sudo_user=self.options.sudo_user,
+                become=self.options.become,
+                become_user=self.options.become_user,
+                become_pass=self.become_password,
+                become_method=self.options.become_method,
                 transport=self.options.connection,
                 subset=self.options.subset,
                 check=self.options.check,
                 diff=self.options.check,
                 callbacks=self.callbacks,
-                su=self.options.su,
                 inventory=self.ansible.inventory,
                 vault_pass=self.vault_password,
             ).run()
@@ -301,10 +297,10 @@ class AnsibleShell(cmd.Cmd):
         for item in items:
             print item
 
-    def do_sudo(self, arg):
-        """Toggle whether plays run with sudo"""
-        self.options.sudo = not self.options.sudo
-        print "sudo changed to %s" % self.options.sudo
+    def do_become(self, arg):
+        """Toggle whether plays run with become"""
+        self.options.become = not self.options.become
+        print "become changed to %s" % self.options.become
 
     def do_remote_user(self, arg):
         """Given a username, set the remote user plays are run by"""
@@ -314,13 +310,13 @@ class AnsibleShell(cmd.Cmd):
         else:
             print "Please specify a remote user, e.g. `remote_user root`"
 
-    def do_sudo_user(self, arg):
-        """Given a username, set the user that plays are run by when using sudo"""
+    def do_become_user(self, arg):
+        """Given a username, set the user that plays are run by when using become"""
         if arg:
-            self.options.sudo_user = arg
+            self.options.become_user = arg
         else:
-            print "Please specify a sudo user, e.g. `sudo_user jenkins`"
-            print "Current sudo user is %s" % self.options.sudo_user
+            print "Please specify a user, e.g. `become_user jenkins`"
+            print "Current user is %s" % self.options.become_user
 
     def do_exit(self, args):
         """Exits from the console"""
