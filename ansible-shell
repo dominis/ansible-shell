@@ -356,7 +356,7 @@ class AnsibleShell(cmd.Cmd):
 
     def module_args(self, module_name):
         in_path = utils.plugins.module_finder.find_plugin(module_name)
-        oc, a = ansible.utils.module_docs.get_docstring(in_path)
+        oc, a, _ = ansible.utils.module_docs.get_docstring(in_path)
         return oc['options'].keys()
 
 
