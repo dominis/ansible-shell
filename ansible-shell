@@ -145,8 +145,8 @@ class AnsibleShell(cmd.Cmd):
         modules = set()
         module_paths = ansible.utils.plugins.module_finder._get_paths()
         for path in module_paths:
-	    if path is not None:
-            	modules.update(self._find_modules_in_path(path))
+        if path is not None:
+                modules.update(self._find_modules_in_path(path))
 
         return modules
 
