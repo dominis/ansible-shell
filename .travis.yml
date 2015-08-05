@@ -1,3 +1,18 @@
 language: python
 python:
   - "2.7"
+install:
+  - pip install --upgrade pip
+  - pip --version
+  - pip install -r requirements.txt
+script:
+  # Temp symlink so we can test if it compiles
+  - ln -s ansible-shell ansible-shell.py && python -m compileall ansible-shell.py
+  - rm -f ansible-shell.py ansible-shell.pyc
+
+  # Test simple exec
+  - echo 'date' | ./ansible-shell -i tests/localhost
+
+  # Test roundtrip
+  # (backslash prevents 'hostname' from referring to the ansible module 'hostname:')
+  - echo '\hostname' | ./ansible-shell -i tests/localhost | fgrep $(hostname)
