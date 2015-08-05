@@ -1,9 +1,11 @@
-# ansible-shell
-
+# ansible-shell  &nbsp;  [![buildstatus][travis-buildstatus] ][1]
 
 Interactive shell for Ansible with built-in tab completion for all the modules.
 
 ![yolo](http://i.imgur.com/rxYlS9T.gif)
+
+[travis-buildstatus]: https://travis-ci.org/dominis/ansible-shell.svg?branch=master
+[1]: https://travis-ci.org/dominis/ansible-shell/builds/74308181
 
 ## Installation
 
