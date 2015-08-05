@@ -1,15 +1,16 @@
 language: python
+sudo: false
 python:
-- '2.7'
+  - '2.7'
 install:
-- pip install --upgrade pip
-- pip --version
-- pip install -r requirements.txt
+  - pip install --upgrade pip
+  - pip --version
+  - pip install -r requirements.txt
 script:
-- ln -s ansible-shell ansible-shell.py && python -m compileall ansible-shell.py
-- rm -f ansible-shell.py ansible-shell.pyc
-- echo 'date' | ./ansible-shell -i tests/localhost
-- echo '\hostname' | ./ansible-shell -i tests/localhost | fgrep $(hostname)
+  - ln -s ansible-shell ansible-shell.py && python -m compileall ansible-shell.py
+  - rm -f ansible-shell.py ansible-shell.pyc
+  - echo 'date' | ./ansible-shell -i tests/localhost
+  - echo '\hostname' | ./ansible-shell -i tests/localhost | fgrep $(hostname)
 deploy:
   provider: pypi
   user: dominis
