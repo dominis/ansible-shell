@@ -9,6 +9,6 @@ setup(
     url='https://github.com/dominis/ansible-shell',
     description='Interactive shell for ansible',
     install_requires=[
-        "ansible >= 1.3"
+        "ansible >= 1.9"
     ],
 )
