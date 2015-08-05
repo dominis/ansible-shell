@@ -17,5 +17,4 @@ deploy:
   password:
     secure: cYK+F4UlCtJ/xLfQprGyytAqsHSZni2ZfRwvnLxgvS5DIapdDiDNuFhnfpoS53K86yav5MIN5AQVUgfwejVwlzFDNv9rPMTAy+/sY8BpcCkekkZGHWB+HxaPXhi2YZAj5E+b+7frZ4PODE/RjzoyayYLrpcxvS8M1gDxtQ8U7Ns=
   on:
-    tags: true
     repo: dominis/ansible-shell
