@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='ansible-shell',
-    version='0.0.3',
+    version='0.0.4',
     author='Nandor Sivok',
     author_email='dominis@haxor.hu',
     scripts=['ansible-shell'],
