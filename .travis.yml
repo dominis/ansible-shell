@@ -1,18 +1,20 @@
 language: python
 python:
-  - "2.7"
+- '2.7'
 install:
-  - pip install --upgrade pip
-  - pip --version
-  - pip install -r requirements.txt
+- pip install --upgrade pip
+- pip --version
+- pip install -r requirements.txt
 script:
-  # Temp symlink so we can test if it compiles
-  - ln -s ansible-shell ansible-shell.py && python -m compileall ansible-shell.py
-  - rm -f ansible-shell.py ansible-shell.pyc
-
-  # Test simple exec
-  - echo 'date' | ./ansible-shell -i tests/localhost
-
-  # Test roundtrip
-  # (backslash prevents 'hostname' from referring to the ansible module 'hostname:')
-  - echo '\hostname' | ./ansible-shell -i tests/localhost | fgrep $(hostname)
+- ln -s ansible-shell ansible-shell.py && python -m compileall ansible-shell.py
+- rm -f ansible-shell.py ansible-shell.pyc
+- echo 'date' | ./ansible-shell -i tests/localhost
+- echo '\hostname' | ./ansible-shell -i tests/localhost | fgrep $(hostname)
+deploy:
+  provider: pypi
+  user: dominis
+  password:
+    secure: cYK+F4UlCtJ/xLfQprGyytAqsHSZni2ZfRwvnLxgvS5DIapdDiDNuFhnfpoS53K86yav5MIN5AQVUgfwejVwlzFDNv9rPMTAy+/sY8BpcCkekkZGHWB+HxaPXhi2YZAj5E+b+7frZ4PODE/RjzoyayYLrpcxvS8M1gDxtQ8U7Ns=
+  on:
+    tags: true
+    repo: dominis/ansible-shell
