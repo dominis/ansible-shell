@@ -5,6 +5,7 @@ install:
   - pip install --upgrade pip
   - pip --version
   - pip install -r requirements.txt
+  - pip install -U twine
 script:
   - ln -s ansible-shell ansible-shell.py && python -m compileall ansible-shell.py
   - rm -f ansible-shell.py ansible-shell.pyc
