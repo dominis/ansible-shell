@@ -1,3 +1,4 @@
+sudo: false
 language: python
 python:
   - '2.7'
@@ -13,9 +14,11 @@ script:
   - echo '\hostname' | ./ansible-shell -i tests/localhost | fgrep $(hostname)
 deploy:
   provider: pypi
+  upload_docs: no
   user: dominis
   password:
     secure: cYK+F4UlCtJ/xLfQprGyytAqsHSZni2ZfRwvnLxgvS5DIapdDiDNuFhnfpoS53K86yav5MIN5AQVUgfwejVwlzFDNv9rPMTAy+/sY8BpcCkekkZGHWB+HxaPXhi2YZAj5E+b+7frZ4PODE/RjzoyayYLrpcxvS8M1gDxtQ8U7Ns=
   on:
+    tags: true
     repo: dominis/ansible-shell
     branch: master
