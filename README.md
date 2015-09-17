@@ -35,15 +35,18 @@ See [the pip documentation] if you need to learn more about pip.
 
 ```
 cd
+become
+forks
 list
 list groups
 serial
+!  - force shell module instead of the ansible module of the same name (!yum update -y)
 ```
 
 ## Usage:
 
 ```
-[root@aaa ~]# ansible-shell
+[root@aaa ~]# ansible-shell --one-line
 Welcome to the ansible-shell.
 Type help or ? to list commands.
 
