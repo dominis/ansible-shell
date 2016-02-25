@@ -33,67 +33,188 @@
 
 
 import cmd
-import ansible.runner
-from ansible.color import stringc, codeCodes
+import ansible
+from ansible.parsing.dataloader import DataLoader
+from ansible.vars import VariableManager
+from ansible.playbook.play import Play
+from ansible.executor.task_queue_manager import TaskQueueManager
+from ansible.utils.color import stringc, codeCodes
+import ansible.utils.boolean
 import ansible.constants as C
 from ansible import utils
-from ansible import callbacks
+from ansible.cli import CLI
+from ansible.cli.adhoc import AdHocCLI
 from ansible.inventory import Inventory, Host
+from ansible.plugins import get_all_plugin_loaders, module_loader
+from ansible.utils.vars import load_extra_vars
+from ansible.utils.display import Display
 import ansible.utils.module_docs as module_docs
-import getpass
+from ansible.errors import AnsibleError, AnsibleOptionsError
 import sys
 import os
-import pwd
 import readline
-import rlcompleter
 import atexit
 
 
-class colorizer(object):
-    def __init__(self, color):
-        self.color = color
+class AnsibleShellCLI(AdHocCLI):
 
-    def __enter__(self):
-        sys.stdout.write("\033[")
-        sys.stdout.write(codeCodes[self.color])
-        sys.stdout.write("m")
+    def __init__(self, args, display):
+        super(AdHocCLI, self).__init__(args)
+        self.sshpass = None
+        self.becomepass = None
+        self.vault_pass = None
+        self.display = display
 
-    def __exit__(self, *args):
-        sys.stdout.write("\033[0m")
+    def get_passwords(self):
+        if self.options.connection == "local":
+            self.options.ask_pass = False
+
+        self.sshpass = None
+        self.becomepass = None
+        self.vault_pass = None
+
+        self.normalize_become_options()
+        (self.sshpass, self.becomepass) = self.ask_passwords()
+
+        if self.options.vault_password_file:
+            # read vault_pass from a file
+            loader = DataLoader()
+            self.vault_pass = CLI.read_vault_password_file(self.options.vault_password_file, loader=loader)
+        elif self.options.ask_vault_pass:
+            self.vault_pass = self.ask_vault_passwords()[0]
+
+    def parse(self):
+        self.parser = CLI.base_parser(
+            runas_opts=True,
+            subset_opts=True,
+            inventory_opts=True,
+            async_opts=True,
+            connect_opts=True,
+            check_opts=True,
+            vault_opts=True,
+            runtask_opts=True,
+            module_opts=True,
+            fork_opts=True,
+            usage='%prog <host-pattern> [options]'
+        )
+        self.parser.add_option('-a', '--args', dest='module_args',
+            help="module arguments", default=C.DEFAULT_MODULE_ARGS)
+        self.parser.add_option('-m', '--module-name', dest='module_name',
+            help="module name to execute (default=%s)" % C.DEFAULT_MODULE_NAME,
+            default=C.DEFAULT_MODULE_NAME)
+
+        self.parser.add_option('-p', '--step', default=False, action="store_true",
+                               dest='step',
+                               help='one-step-at-a-time: confirm each task before running')
+
+        self.options, self.args = self.parser.parse_args(self.args[1:])
+
+        return True
+
+    def prepare_run(self):
+
+        # only thing left should be host pattern
+        self.pattern = ''
+
+        # ignore connection password cause we are local
+        if self.options.connection == "local":
+            self.options.ask_pass = False
+
+        self.normalize_become_options()
+        self.passwords = { 'conn_pass': self.sshpass, 'become_pass': self.becomepass }
+
+        self.loader = DataLoader()
+        self.loader.set_vault_password(self.vault_pass)
+
+        self.variable_manager = VariableManager()
+        self.variable_manager.extra_vars = load_extra_vars(loader=self.loader, options=self.options)
+
+        self.inventory = Inventory(loader=self.loader, variable_manager=self.variable_manager, host_list=self.options.inventory)
+        self.variable_manager.set_inventory(self.inventory)
+
+        self.hosts = self.inventory.list_hosts(self.pattern)
+        no_hosts = False
+        if len(self.hosts) == 0:
+            self.display.warning("provided hosts list is empty, only localhost is available")
+            no_hosts = True
+
+        if self.options.subset:
+            self.inventory.subset(self.options.subset)
+            if len(self.inventory.list_hosts(self.pattern)) == 0 and not no_hosts:
+                # Invalid limit
+                raise AnsibleError("Specified --limit does not match any hosts")
+
+        if self.options.listhosts:
+            self.display.display('  hosts (%d):' % len(self.hosts))
+            for host in self.hosts:
+                self.display.display('    %s' % host)
+            return 0
+
+        # dynamically load any plugins from the playbook directory
+        for name, obj in get_all_plugin_loaders():
+            if obj.subdir:
+                plugin_path = os.path.join('.', obj.subdir)
+                if os.path.isdir(plugin_path):
+                    obj.add_directory(plugin_path)
+
+        if self.callback:
+            self.cb = self.callback
+        else:
+            self.cb = 'minimal'
+
+    def run(self):
+
+        super(AdHocCLI, self).run()
+
+        if self.options.module_name in C.MODULE_REQUIRE_ARGS and not self.options.module_args:
+            err = "No argument passed to %s module" % self.options.module_name
+            if self.pattern.endswith(".yml"):
+                err += ' (did you mean to run ansible-playbook?)'
+            raise AnsibleOptionsError(err)
+
+        self._tqm = None
+        try:
+            self.play_ds = self._play_ds(self.options.cwd, self.options.seconds, self.options.poll_interval)
+            self.play = Play().load(self.play_ds, variable_manager=self.variable_manager, loader=self.loader)
+            self._tqm = TaskQueueManager(
+                    inventory=self.inventory,
+                    variable_manager=self.variable_manager,
+                    loader=self.loader,
+                    options=self.options,
+                    passwords=self.passwords,
+                    stdout_callback=self.cb,
+                    run_additional_callbacks=C.DEFAULT_LOAD_CALLBACK_PLUGINS,
+                )
+            result = self._tqm.run(self.play)
+        finally:
+            if self._tqm:
+                self._tqm.cleanup()
+
+        return result
 
 
 class AnsibleShell(cmd.Cmd):
 
     modules = []
 
-    def __init__(self, options, args):
-        self.options = options
-        self.options.cwd = '*'
-        self.ssh_password, self.become_password, self.vault_password = self.load_passwords()
-        self.ansible = ansible.runner.Runner(
-            inventory=Inventory(self.options.inventory,
-                                vault_password=self.vault_password),
-            vault_pass=self.vault_password,
-        )
-        self.groups = self.ansible.inventory.groups_list().keys()
-        self.hosts = self.ansible.inventory.groups_list()['all']
-        self.callbacks = callbacks.CliRunnerCallbacks()
+    def __init__(self):
+        self.display = Display()
+        self.cli = AnsibleShellCLI(sys.argv, self.display)
+        self.cli.parse()
+        self.cli.options.cwd = '*'
+        self.cli.get_passwords()
+        self.cli.prepare_run()
+        self.groups = self.cli.inventory.groups.keys()
+        print "Groups:", self.groups
+        print "Hosts:", self.cli.hosts
         self.read_config_file()
         self.intro = 'Welcome to the ansible-shell.\nType help or ? to list commands.\n'
         self.set_prompt()
         self.modules = self.list_modules()
-        #self.modules.remove('shell')
         for module in self.modules:
-            setattr(self, 'do_' + module, lambda arg, module=module: self.default(module + ' ' + arg))
-            setattr(self, 'help_' + module, lambda module=module: self.helpdefault(module))
+            setattr(self, 'do_' + module, lambda arg, mod=module: self.default(mod + ' ' + arg))
+            setattr(self, 'help_' + module, lambda mod=module: self.helpdefault(mod))
         cmd.Cmd.__init__(self)
-
-    def load_passwords(self):
-        return utils.ask_passwords(
-                self.options.ask_pass,
-                self.options.become_ask_pass,
-                self.options.ask_vault_pass
-                )
 
     def read_config_file(self):
         allowed_items = {
@@ -101,53 +222,33 @@ class AnsibleShell(cmd.Cmd):
             'cwd': 'str',
             'forks': 'int',
         }
-        config = C.load_config_file()
+        config, configpath = C.load_config_file()
         if config is not None and config.has_section('ansible-shell'):
             for item in config.items('ansible-shell'):
                 if item[0] in allowed_items.keys():
                     value = vars(__builtins__)[allowed_items[item[0]]](item[1])
-                    setattr(self.options, item[0], value)
-
-    @staticmethod
-    def parse_opts():
-        parser = utils.base_parser(
-            constants=C,
-            runas_opts=True,
-            subset_opts=True,
-            async_opts=True,
-            output_opts=True,
-            connect_opts=True,
-            check_opts=True,
-            diff_opts=False,
-            usage='%prog <host-pattern> [options]'
-        )
-
-        parser.add_option('-p', '--step', default=False, action="store_true",
-                          dest='step',
-                          help='one-step-at-a-time: confirm each task before running')
-
-        return parser.parse_args()
+                    setattr(self.cli.options, item[0], value)
 
     def get_names(self):
         return dir(self)
 
-    def cmdloop(self):
+    def cmdloop(self, intro=None):
         try:
             cmd.Cmd.cmdloop(self)
         except KeyboardInterrupt:
             self.do_exit(self)
 
     def set_prompt(self):
-        self.selected = self.ansible.inventory.list_hosts(self.options.cwd)
-        self.prompt = "%s@%s (%d)[f:%s]$ " % (self.options.remote_user, self.options.cwd, len(self.selected), self.options.forks)
+        self.selected = self.cli.inventory.list_hosts(self.cli.options.cwd)
+        self.prompt = "%s@%s (%d)[f:%s]$ " % (self.cli.options.remote_user, self.cli.options.cwd, len(self.selected),
+                                              self.cli.options.forks)
 
     def list_modules(self):
         modules = set()
-        module_paths = ansible.utils.plugins.module_finder._get_paths()
+        module_paths = ansible.plugins.module_loader._get_paths()
         for path in module_paths:
             if path is not None:
                 modules.update(self._find_modules_in_path(path))
-
         return modules
 
     def _find_modules_in_path(self, path):
@@ -157,21 +258,21 @@ class AnsibleShell(cmd.Cmd):
                 module_name = basename.split('.')[0]
                 ext = basename.split('.')[-1] if '.' in basename else None
                 if not module_name.startswith('_') and \
-                   ext in ('py', 'ps1', None) and \
-                   module_name in utils.plugins.module_finder:
+                    ext in ('py', 'ps1', None) and \
+                    module_name in ansible.plugins.module_loader:
                     yield module_name
 
     def confirm(self, module, module_args):
-        if not self.options.step:
+        if not self.cli.options.step:
             return True
 
         # print hosts
-        callbacks.display("HOSTS:","bright blue")
+        self.cli.display("HOSTS:","bright blue")
         for host in self.selected:
             hostname = host.name if isinstance(host, Host) else host
-            callbacks.display("\t%s" % hostname,"green")
+            self.cli.display("\t%s" % hostname,"green")
 
-        callbacks.display("\nSUMMARY: host_num[%d] module[%s] module_args[%s] options[%s]\n" % (len(self.selected), module, module_args, self.options),"bright blue")
+        self.cli.display.verbose("\nSUMMARY: host_num[%d] module[%s] module_args[%s] options[%s]\n" % (len(self.selected), module, module_args, self.cli.options),"bright blue")
 
         answer=False
         try:
@@ -181,13 +282,13 @@ class AnsibleShell(cmd.Cmd):
             answer = sys.stdin.readline()[:-1]
         except:
             answer = False
-        return utils.boolean(answer)
+        return utils.boolean.boolean(answer)
 
     def default(self, arg, forceshell=False):
         if arg.startswith("#"):
             return False
 
-        if not self.options.cwd:
+        if not self.cli.options.cwd:
             print "No host found"
             return False
 
@@ -203,36 +304,14 @@ class AnsibleShell(cmd.Cmd):
             module_args = arg
 
         if not self.confirm(module, module_args):
-            callbacks.display("Command canceled by user")
+            print "Command canceled by user"
             return
 
-        self.options.module_name = module
-        self.callbacks.options = self.options
+        self.cli.options.module_name = module
+        self.cli.options.module_args = module_args
 
         try:
-            results = ansible.runner.Runner(
-                pattern=self.options.cwd,
-                module_name=module,
-                module_args=module_args,
-                remote_user=self.options.remote_user,
-                timeout=self.options.timeout,
-                private_key_file=self.options.private_key_file,
-                forks=self.options.forks,
-                become=self.options.become,
-                become_user=self.options.become_user,
-                become_pass=self.become_password,
-                become_method=self.options.become_method,
-                transport=self.options.connection,
-                subset=self.options.subset,
-                check=self.options.check,
-                diff=self.options.check,
-                callbacks=self.callbacks,
-                inventory=self.ansible.inventory,
-                vault_pass=self.vault_password,
-            ).run()
-            if results is None:
-                print "No hosts found"
-                return False
+            self.cli.run()
         except Exception as e:
             print unicode(e)
             return False
@@ -259,7 +338,7 @@ class AnsibleShell(cmd.Cmd):
         if not arg:
             print 'Usage: forks <number>'
             return
-        self.options.forks = int(arg)
+        self.cli.options.forks = int(arg)
         self.set_prompt()
 
     do_serial = do_forks
@@ -274,39 +353,43 @@ class AnsibleShell(cmd.Cmd):
             cd webservers:dbservers:&staging:!phoenix
         """
         if not arg:
-            self.options.cwd = '*'
+            self.cli.options.cwd = '*'
         elif arg == '..':
             try:
-                self.options.cwd = self.ansible.inventory.groups_for_host(self.options.cwd)[1].name
+                self.cli.options.cwd = self.cli.inventory.groups_for_host(self.cli.options.cwd)[1].name
             except Exception:
-                self.options.cwd = ''
+                self.cli.options.cwd = ''
         elif arg == '/':
-            self.options.cwd = 'all'
-        elif self.ansible.inventory.get_hosts(arg):
-            self.options.cwd = arg
+            self.cli.options.cwd = 'all'
+        elif self.cli.inventory.get_hosts(arg):
+            self.cli.options.cwd = arg
         else:
             print "no host matched"
 
         self.set_prompt()
 
     def do_list(self, arg):
-        """List the hosts in the current group"""
+        """List the hosts in the current group, or list groups if called using 'list groups'"""
         if arg == 'groups':
-            items = self.ansible.inventory.list_groups()
+            items = self.cli.inventory.list_groups()
         else:
             items = self.selected
         for item in items:
             print item
 
+    def do_ls(self, arg):
+        """Alias for list for people who can't stop typing ls"""
+        self.do_list(arg)
+
     def do_become(self, arg):
         """Toggle whether plays run with become"""
-        self.options.become = not self.options.become
-        print "become changed to %s" % self.options.become
+        self.cli.options.become = not self.cli.options.become
+        print "become changed to %s" % self.cli.options.become
 
     def do_remote_user(self, arg):
         """Given a username, set the remote user plays are run by"""
         if arg:
-            self.options.remote_user = arg
+            self.cli.options.remote_user = arg
             self.set_prompt()
         else:
             print "Please specify a remote user, e.g. `remote_user root`"
@@ -314,10 +397,10 @@ class AnsibleShell(cmd.Cmd):
     def do_become_user(self, arg):
         """Given a username, set the user that plays are run by when using become"""
         if arg:
-            self.options.become_user = arg
+            self.cli.options.become_user = arg
         else:
             print "Please specify a user, e.g. `become_user jenkins`"
-            print "Current user is %s" % self.options.become_user
+            print "Current user is %s" % self.cli.options.become_user
 
     def do_exit(self, args):
         """Exits from the console"""
@@ -328,7 +411,7 @@ class AnsibleShell(cmd.Cmd):
 
     def helpdefault(self, module_name):
         if module_name in self.modules:
-            in_path = utils.plugins.module_finder.find_plugin(module_name)
+            in_path = ansible.plugins.module_loader.find_plugin(module_name)
             oc, a, _ = ansible.utils.module_docs.get_docstring(in_path)
             print stringc(oc['short_description'], 'bright gray')
             print 'Parameters:'
@@ -339,23 +422,15 @@ class AnsibleShell(cmd.Cmd):
         mline = line.partition(' ')[2]
         offs = len(mline) - len(text)
 
-        if self.options.cwd == '*':
-            completions = self.hosts + self.groups
+        if self.cli.options.cwd == '*':
+            completions = self.cli.hosts + self.groups
         else:
-            completions = self.ansible.inventory.list_hosts(self.options.cwd)
+            completions = self.selected
 
-        return [s[offs:] for s in completions if s.startswith(mline)]
-
-    def completedefault(self, text, line, begidx, endidx):
-        if line.split()[0] in self.modules:
-            mline = line.split(' ')[-1]
-            offs = len(mline) - len(text)
-            completions = self.module_args(line.split()[0])
-
-            return [s[offs:] + '=' for s in completions if s.startswith(mline)]
+        return [str(s)[offs:] for s in completions if str(s).startswith(str(mline))]
 
     def module_args(self, module_name):
-        in_path = utils.plugins.module_finder.find_plugin(module_name)
+        in_path = ansible.plugins.module_loader.find_plugin(module_name)
         oc, a, _ = ansible.utils.module_docs.get_docstring(in_path)
         return oc['options'].keys()
 
@@ -374,6 +449,5 @@ if __name__ == '__main__':
         pass
     atexit.register(readline.write_history_file, histfile)
 
-    (options, args) = AnsibleShell.parse_opts()
-    AnsibleShell(options, args).cmdloop()
+    AnsibleShell().cmdloop()
 
