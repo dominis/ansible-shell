@@ -407,12 +407,15 @@ class AnsibleShell(cmd.Cmd):
 
     def helpdefault(self, module_name):
         if module_name in self.modules:
-            in_path = ansible.plugins.module_loader.find_plugin(module_name)
-            oc, a, _ = ansible.utils.module_docs.get_docstring(in_path)
-            print stringc(oc['short_description'], 'bright gray')
-            print 'Parameters:'
-            for opt in oc['options'].keys():
-                print '  ' + stringc(opt, 'white') + ' ' + oc['options'][opt]['description'][0]
+            in_path = ansible.plugins.module_loader.find_plugin(module_name, mod_type='.py')
+            try:
+                oc, a, _ = ansible.utils.module_docs.get_docstring(in_path)
+                print stringc(oc['short_description'], 'bright gray')
+                print 'Parameters:'
+                for opt in oc['options'].keys():
+                    print '  ' + stringc(opt, 'white') + ' ' + oc['options'][opt]['description'][0]
+            except:
+                print "Error parsing help"
 
     def complete_cd(self, text, line, begidx, endidx):
         mline = line.partition(' ')[2]
