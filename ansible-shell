@@ -407,7 +407,7 @@ class AnsibleShell(cmd.Cmd):
 
     def helpdefault(self, module_name):
         if module_name in self.modules:
-            in_path = ansible.plugins.module_loader.find_plugin(module_name)
+            in_path = ansible.plugins.module_loader.find_plugin(module_named)
             oc, a, _ = ansible.utils.module_docs.get_docstring(in_path)
             print stringc(oc['short_description'], 'bright gray')
             print 'Parameters:'
@@ -429,12 +429,15 @@ class AnsibleShell(cmd.Cmd):
         if line.split()[0] in self.modules:
             mline = line.split(' ')[-1]
             offs = len(mline) - len(text)
-            completions = self.module_args(line.split()[0])
+            try:
+                completions = self.module_args(line.split()[0])
+            except:
+                completions = []
 
             return [s[offs:] + '=' for s in completions if s.startswith(mline)]
 
     def module_args(self, module_name):
-        in_path = ansible.plugins.module_loader.find_plugin(module_name)
+        in_path = ansible.plugins.module_loader.find_plugin(module_name, mod_type='.py')
         oc, a, _ = ansible.utils.module_docs.get_docstring(in_path)
         return oc['options'].keys()
 
