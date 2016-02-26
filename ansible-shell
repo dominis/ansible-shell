@@ -429,6 +429,14 @@ class AnsibleShell(cmd.Cmd):
 
         return [str(s)[offs:] for s in completions if str(s).startswith(str(mline))]
 
+    def completedefault(self, text, line, begidx, endidx):
+        if line.split()[0] in self.modules:
+            mline = line.split(' ')[-1]
+            offs = len(mline) - len(text)
+            completions = self.module_args(line.split()[0])
+
+            return [s[offs:] + '=' for s in completions if s.startswith(mline)]
+
     def module_args(self, module_name):
         in_path = ansible.plugins.module_loader.find_plugin(module_name)
         oc, a, _ = ansible.utils.module_docs.get_docstring(in_path)
