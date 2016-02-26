@@ -407,7 +407,7 @@ class AnsibleShell(cmd.Cmd):
 
     def helpdefault(self, module_name):
         if module_name in self.modules:
-            in_path = ansible.plugins.module_loader.find_plugin(module_named)
+            in_path = ansible.plugins.module_loader.find_plugin(module_name)
             oc, a, _ = ansible.utils.module_docs.get_docstring(in_path)
             print stringc(oc['short_description'], 'bright gray')
             print 'Parameters:'
