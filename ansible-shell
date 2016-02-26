@@ -377,10 +377,6 @@ class AnsibleShell(cmd.Cmd):
         for item in items:
             print item
 
-    def do_ls(self, arg):
-        """Alias for list for people who can't stop typing ls"""
-        self.do_list(arg)
-
     def do_become(self, arg):
         """Toggle whether plays run with become"""
         self.cli.options.become = not self.cli.options.become
