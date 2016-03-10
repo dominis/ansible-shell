@@ -1,6 +1,10 @@
+# As of Ansible 2.1 ansible-shell is part of the official ansible release: https://github.com/ansible/ansible/blob/devel/lib/ansible/cli/console.py
+
 # ansible-shell  &nbsp;  [![buildstatus][travis-buildstatus] ][1]
 
 Interactive shell for Ansible with built-in tab completion for all the modules.
+
+This version works with 1.x version of ansible.
 
 ![yolo](http://i.imgur.com/rxYlS9T.gif)
 
