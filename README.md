@@ -1,3 +1,23 @@
+> [!CAUTION]
+>
+> 
+> Dear Visitor,
+> This repository has been archived.
+> 
+> Experiencing issues with your cloud? Need help with version updates, cost management, scaling, disaster recovery, etc.?
+>
+> If so, please visit https://ber.sh. This is what I’m working on today.
+> 
+> I hope I can make your life a little bit easier.
+> 
+> Thank you,
+> 
+> Nandor Sivok
+> 
+
+# ⬆︎⬆︎⬆︎⬆︎ READ THIS FIRST ⬆︎⬆︎⬆︎⬆︎ <3
+-------
+
 # As of Ansible 2.1 ansible-shell is part of the official ansible release: https://github.com/ansible/ansible/blob/devel/lib/ansible/cli/console.py
 
 # ansible-shell  &nbsp;  [![buildstatus][travis-buildstatus] ][1]
